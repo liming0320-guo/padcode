@@ -14,7 +14,7 @@
     <link rel="apple-touch-icon" href="assets/icon.svg" />
     <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css" />
     <link rel="stylesheet" href="vendor/monaco/vs/editor/editor.main.css" />
-    <link rel="stylesheet" href="styles.css?v=20261103-3" />
+    <link rel="stylesheet" href="styles.css?v=20261103-4" />
   </head>
   <body>
     <nav class="vs-activitybar" aria-label="工作台">
@@ -317,7 +317,7 @@
           <div class="preview-toolbar">
             <div class="preview-title">
               <span class="preview-live-dot" aria-hidden="true"></span>
-              <strong>预览</strong>
+              <strong id="previewPanelTitle">预览</strong>
               <span id="previewTimestamp">等待运行</span>
             </div>
             <div class="preview-actions">
@@ -352,6 +352,14 @@
               sandbox="allow-scripts allow-forms allow-modals allow-popups"
             ></iframe>
           </div>
+          <iframe
+            id="runnerFrame"
+            class="runner-frame"
+            title="隐藏的代码运行器"
+            aria-hidden="true"
+            tabindex="-1"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+          ></iframe>
 
           <section class="console-panel" id="consolePanel" aria-label="控制台">
             <div class="console-toolbar">
@@ -612,6 +620,6 @@
     <script>
       require.config({ paths: { vs: "vendor/monaco/vs" } });
     </script>
-    <script src="app.js?v=20261103-3"></script>
+    <script src="app.js?v=20261103-4"></script>
   </body>
 </html>

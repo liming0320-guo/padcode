@@ -11,6 +11,7 @@ PadCode 是一个为 iPad 和触控设备优化的浏览器代码工作台。它
 - 新建、重命名和删除自定义文件，刷新后自动恢复
 - Python、Java、C、C++ 独立代码草稿与语法高亮
 - Python、Java、C、C++ 在站内嵌入 OneCompiler 运行，自动传入当前代码并运行
+- 运行器编辑器保持隐藏，PadCode 预览区只展示执行结果
 - 实时网页预览与可折叠控制台
 - `localStorage` 自动保存，刷新页面不会丢失
 - 导入外部 `.html`、`.css`、`.js`、`.py`、`.java`、`.c`、`.cpp` 文件

@@ -134,6 +134,8 @@
     stdinDialog: document.querySelector("#stdinDialog"),
     stdinInput: document.querySelector("#stdinInput"),
     previewFrame: document.querySelector("#previewFrame"),
+    runnerFrame: document.querySelector("#runnerFrame"),
+    previewPanelTitle: document.querySelector("#previewPanelTitle"),
     previewTimestamp: document.querySelector("#previewTimestamp"),
     templateButton: document.querySelector("#templateButton"),
     templateDialog: document.querySelector("#templateDialog"),
@@ -210,8 +212,10 @@
   let pistonBusy = false;
   let embeddedRunnerReady = false;
   let embeddedRunnerCompleted = false;
+  let embeddedRunnerRunning = false;
   let embeddedRunnerTimer = 0;
   let embeddedRunnerRetryTimer = 0;
+  let embeddedRunnerTimeoutTimer = 0;
   const consoleLogs = [];
   let aiConfig = loadAIConfig();
   let aiHistory = [];
@@ -468,7 +472,7 @@
 
     window.addEventListener("message", receivePreviewMessage);
     window.addEventListener("message", receiveEmbeddedRunnerMessage);
-    elements.previewFrame.addEventListener("load", handleEmbeddedRunnerLoad);
+    elements.runnerFrame.addEventListener("load", handleEmbeddedRunnerLoad);
     document.addEventListener("keydown", handleGlobalKeydown, true);
   }
 
@@ -948,6 +952,7 @@
     elements.autoRunToggle.closest(".live-toggle").classList.toggle("is-disabled", !webLanguage);
     elements.autoRunLabel.textContent = webLanguage ? "实时预览" : "外部运行器";
     elements.templateButtonLabel.textContent = webLanguage ? "示例" : "重置";
+    elements.previewPanelTitle.textContent = webLanguage ? "预览" : "运行输出";
     const runLabel = elements.runButton.querySelector("span");
     if (runLabel) {
       runLabel.textContent = webLanguage ? "运行" : "在线运行";
@@ -1020,6 +1025,8 @@
     elements.autoRunToggle.closest(".live-toggle").classList.add("is-disabled");
     elements.autoRunLabel.textContent = "独立文件";
     elements.templateButtonLabel.textContent = "新建";
+    elements.previewPanelTitle.textContent =
+      mode === "htmlmixed" ? "预览" : config.externalSlug ? "运行输出" : "文件";
     const runLabel = elements.runButton.querySelector("span");
     if (runLabel) {
       runLabel.textContent = config.externalSlug ? "在线运行" : "预览";
@@ -1577,11 +1584,6 @@
   }
 
   function preparePreviewFrame() {
-    window.clearTimeout(embeddedRunnerTimer);
-    window.clearTimeout(embeddedRunnerRetryTimer);
-    embeddedRunnerReady = false;
-    embeddedRunnerCompleted = false;
-    delete elements.previewFrame.dataset.oneCompilerUrl;
     elements.previewFrame.removeAttribute("src");
     elements.previewFrame.setAttribute(
       "sandbox",
@@ -1601,6 +1603,10 @@
   }
 
   function openExternalRunner() {
+    if (embeddedRunnerRunning) {
+      showToast("程序正在运行，请稍候。");
+      return;
+    }
     const language = state.activeLanguage;
     const customFile = getCustomFile(state.activeCustomFileId);
     const config = customFile
@@ -1637,12 +1643,21 @@
       stdin: stdin,
     };
     const sameRunner =
-      embeddedRunnerReady && elements.previewFrame.dataset.oneCompilerUrl === url;
+      embeddedRunnerReady && elements.runnerFrame.dataset.oneCompilerUrl === url;
 
     setView("preview");
+    elements.previewPanelTitle.textContent = "运行输出";
     clearConsole();
     embeddedRunnerCompleted = false;
-    setConsoleExpanded(true);
+    embeddedRunnerRunning = true;
+    setRunButtonBusy(true);
+    setConsoleExpanded(false);
+    preparePreviewFrame();
+    elements.previewFrame.srcdoc = buildTerminalDocument(
+      config.label + " · 正在运行",
+      "当前文件已自动发送到站内运行器，请稍候…",
+      "loading"
+    );
     elements.previewTimestamp.textContent = "正在准备站内运行…";
     appendConsoleEntry(
       "info",
@@ -1651,29 +1666,26 @@
 
     if (sameRunner) {
       startEmbeddedRunner(payload, 120);
+      armRunnerTimeout();
       return;
     }
 
     embeddedRunnerReady = false;
-    elements.previewFrame.dataset.oneCompilerUrl = url;
-    elements.previewFrame.dataset.pendingRunnerPayload = JSON.stringify(payload);
-    elements.previewFrame.setAttribute(
-      "sandbox",
-      "allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
-    );
-    elements.previewFrame.removeAttribute("srcdoc");
-    elements.previewFrame.src = url;
+    elements.runnerFrame.dataset.oneCompilerUrl = url;
+    elements.runnerFrame.dataset.pendingRunnerPayload = JSON.stringify(payload);
+    elements.runnerFrame.src = url;
+    armRunnerTimeout();
   }
 
   function handleEmbeddedRunnerLoad() {
-    const expectedUrl = elements.previewFrame.dataset.oneCompilerUrl;
+    const expectedUrl = elements.runnerFrame.dataset.oneCompilerUrl;
     if (!expectedUrl) {
       return;
     }
     embeddedRunnerReady = true;
     let payload = null;
     try {
-      payload = JSON.parse(elements.previewFrame.dataset.pendingRunnerPayload || "null");
+      payload = JSON.parse(elements.runnerFrame.dataset.pendingRunnerPayload || "null");
     } catch (_error) {
       payload = null;
     }
@@ -1704,17 +1716,17 @@
   }
 
   function sendToEmbeddedRunner(payload) {
-    if (!elements.previewFrame.contentWindow) {
+    if (!elements.runnerFrame.contentWindow) {
       return;
     }
-    elements.previewFrame.contentWindow.postMessage(payload, "https://onecompiler.com");
+    elements.runnerFrame.contentWindow.postMessage(payload, "https://onecompiler.com");
   }
 
   function receiveEmbeddedRunnerMessage(event) {
     if (event.origin !== "https://onecompiler.com") {
       return;
     }
-    if (event.source !== elements.previewFrame.contentWindow) {
+    if (event.source !== elements.runnerFrame.contentWindow) {
       return;
     }
     const data = event.data;
@@ -1722,18 +1734,51 @@
       return;
     }
     embeddedRunnerCompleted = true;
+    embeddedRunnerRunning = false;
     window.clearTimeout(embeddedRunnerRetryTimer);
+    window.clearTimeout(embeddedRunnerTimeoutTimer);
+    setRunButtonBusy(false);
     const result = data.result || {};
-    const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+    const output = [result.stdout, result.stderr, result.exception]
+      .filter(Boolean)
+      .join("\n")
+      .trim();
     elements.previewTimestamp.textContent =
       "运行完成" +
       (typeof result.executionTime === "number"
         ? " · " + Math.round(result.executionTime) + " ms"
         : "");
-    appendConsoleEntry(
-      result.stderr ? "error" : "info",
-      output || "程序运行完成，没有额外输出。"
+    const displayOutput = output || "程序运行完成，没有额外输出。";
+    preparePreviewFrame();
+    elements.previewFrame.srcdoc = buildTerminalDocument(
+      getActiveFileName() + " · 运行结果",
+      displayOutput,
+      result.stderr || result.exception ? "error" : "success"
     );
+    appendConsoleEntry(
+      result.stderr || result.exception ? "error" : "info",
+      displayOutput
+    );
+    setConsoleExpanded(false);
+  }
+
+  function armRunnerTimeout() {
+    window.clearTimeout(embeddedRunnerTimeoutTimer);
+    embeddedRunnerTimeoutTimer = window.setTimeout(function () {
+      if (!embeddedRunnerRunning) {
+        return;
+      }
+      embeddedRunnerRunning = false;
+      setRunButtonBusy(false);
+      preparePreviewFrame();
+      elements.previewFrame.srcdoc = buildTerminalDocument(
+        "运行超时",
+        "运行器长时间没有返回结果。\n\n请检查网络连接，然后再次点击“在线运行”。",
+        "error"
+      );
+      elements.previewTimestamp.textContent = "运行超时";
+      appendConsoleEntry("error", "运行器响应超时。");
+    }, 30000);
   }
 
   async function executeProgram() {
@@ -1965,7 +2010,11 @@
     elements.runButton.disabled = busy;
     const label = elements.runButton.querySelector("span");
     if (label) {
-      label.textContent = busy ? "运行中…" : "运行";
+      label.textContent = busy
+        ? "运行中…"
+        : isWebLanguage() || getActiveMode() === "htmlmixed"
+          ? "运行"
+          : "在线运行";
     }
   }
 

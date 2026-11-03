@@ -1598,6 +1598,17 @@ svg {
   background: white;
 }
 
+.runner-frame {
+  position: fixed;
+  top: 0;
+  left: -12000px;
+  width: 900px;
+  height: 700px;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .console-panel {
   display: grid;
   grid-template-rows: 34px minmax(0, 1fr);
