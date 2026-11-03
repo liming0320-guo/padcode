@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "padcode-shell-v4";
+const CACHE_NAME = "padcode-shell-v5";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -77,6 +77,25 @@ self.addEventListener("fetch", function (event) {
           return caches.match(event.request).then(function (cached) {
             return cached || caches.match("./index.html");
           });
+        })
+    );
+    return;
+  }
+
+  if (/\/(app\.js|styles\.css|manifest\.webmanifest|sw\.js)$/.test(requestUrl.pathname)) {
+    event.respondWith(
+      fetch(event.request)
+        .then(function (response) {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(function (cache) {
+              cache.put(event.request, copy);
+            });
+          }
+          return response;
+        })
+        .catch(function () {
+          return caches.match(event.request);
         })
     );
     return;
