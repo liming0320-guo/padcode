@@ -81,6 +81,9 @@
         <div class="drawer-toolbar">
           <span>工作区</span>
           <div>
+            <button class="mini-icon-button" id="drawerNewFileButton" type="button" title="新建文件" aria-label="新建文件">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+            </button>
             <button class="mini-icon-button" id="drawerImportButton" type="button" title="导入文件" aria-label="导入文件">
               <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 18v2h14v-2" /></svg>
             </button>
@@ -102,6 +105,13 @@
             <button class="tree-file" type="button" data-code-language="java"><span class="file-icon java">JA</span><span>Main.java</span></button>
             <button class="tree-file" type="button" data-code-language="c"><span class="file-icon c">C</span><span>main.c</span></button>
             <button class="tree-file" type="button" data-code-language="cpp"><span class="file-icon cpp">C++</span><span>main.cpp</span></button>
+          </div>
+          <div class="tree-group">
+            <span class="tree-group-title"><i></i>MY FILES <b id="customFileCount">0</b></span>
+            <div id="customFileTree"></div>
+            <button class="tree-file tree-file-new" type="button" data-new-file>
+              <span class="file-icon add">+</span><span>新建文件</span>
+            </button>
           </div>
         </div>
         <div class="drawer-outline">
@@ -231,6 +241,12 @@
                 <span data-file-label>script.js</span>
               </button>
             </div>
+            <button class="icon-text-button new-file-strip-button" id="newFileTabButton" type="button">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span>新建</span>
+            </button>
             <button class="icon-text-button" id="templateButton" type="button">
               <svg aria-hidden="true" viewBox="0 0 24 24">
                 <path d="M12 3v18M3 12h18" />
@@ -255,6 +271,10 @@
                 </svg>
               </label>
               <span class="breadcrumb"><span>我的项目</span><b>/</b><strong id="activeFilename">index.html</strong></span>
+              <div class="active-file-actions" id="activeFileActions" hidden>
+                <button id="renameFileButton" type="button" title="重命名文件">重命名</button>
+                <button id="deleteFileButton" class="is-danger" type="button" title="删除文件">删除</button>
+              </div>
             </div>
             <label class="live-toggle">
               <input id="autoRunToggle" type="checkbox" checked />
@@ -390,7 +410,39 @@
       <p class="assistant-footnote">AI 可能出错，应用代码前请先查看预览。不要在此输入密码等敏感信息。</p>
     </aside>
 
-    <input id="fileInput" type="file" accept=".html,.htm,.css,.js" hidden />
+    <input
+      id="fileInput"
+      type="file"
+      accept=".html,.htm,.css,.js,.py,.java,.c,.cpp,.cc,.cxx,.h,.hpp,.json,.md,.txt"
+      multiple
+      hidden
+    />
+
+    <dialog class="file-dialog" id="fileDialog">
+      <form method="dialog" class="file-dialog-card" id="fileForm">
+        <div class="dialog-heading">
+          <div>
+            <span class="eyebrow">NEW FILE</span>
+            <h2>新建文件</h2>
+            <p>输入文件名和扩展名，例如 app.js、notes.md 或 utils.py。</p>
+          </div>
+          <button class="dialog-close" type="button" data-close-file-dialog aria-label="关闭">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+        <label class="file-name-field">
+          <span>文件名</span>
+          <input id="newFileNameInput" type="text" value="untitled.txt" autocomplete="off" autocapitalize="off" spellcheck="false" />
+        </label>
+        <p class="file-dialog-error" id="fileDialogError" aria-live="polite"></p>
+        <div class="file-dialog-actions">
+          <button class="button button-ghost" type="button" data-close-file-dialog>取消</button>
+          <button class="button button-primary" id="createFileButton" type="submit">创建文件</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog class="template-dialog" id="templateDialog">
       <form method="dialog" class="dialog-card">

@@ -337,6 +337,68 @@ svg {
   font-weight: 650;
 }
 
+.tree-custom-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.tree-custom-row .tree-file {
+  min-width: 0;
+  flex: 1;
+}
+
+.tree-custom-row .tree-file span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-file-action {
+  display: grid;
+  width: 25px;
+  height: 27px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #96958d;
+  cursor: pointer;
+}
+
+.tree-file-action:hover {
+  background: #ddd8ce;
+  color: #20231f;
+}
+
+.tree-file-action.is-danger:hover {
+  background: #f5ddd7;
+  color: #ad432d;
+}
+
+.tree-file-action svg {
+  width: 12px;
+  height: 12px;
+}
+
+.tree-file-new {
+  color: #b65332;
+}
+
+.tree-file-new .file-icon.add {
+  color: #b65332;
+  font-size: 13px;
+}
+
+.tree-group-title b {
+  margin-left: auto;
+  color: #a09d94;
+  font-size: 8px;
+  font-weight: 500;
+}
+
 .file-icon {
   display: inline-grid;
   width: 24px;
@@ -972,6 +1034,14 @@ svg {
   background: #e5c955;
 }
 
+.file-dot-custom {
+  background: #a8b1c0;
+}
+
+.new-file-strip-button {
+  color: #d9b98d;
+}
+
 .icon-text-button {
   display: flex;
   flex: 0 0 auto;
@@ -1015,6 +1085,32 @@ svg {
   min-width: 0;
   align-items: center;
   gap: 13px;
+}
+
+.active-file-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.active-file-actions button {
+  padding: 4px 7px;
+  border: 1px solid #303947;
+  border-radius: 5px;
+  background: transparent;
+  color: #8e9aac;
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.active-file-actions button:hover {
+  border-color: #52627a;
+  color: #e8eef6;
+}
+
+.active-file-actions button.is-danger:hover {
+  border-color: #8c4b40;
+  color: #ffb09e;
 }
 
 .language-picker {
@@ -2034,6 +2130,65 @@ svg {
   border-radius: 20px;
   background: var(--paper);
   box-shadow: 0 30px 90px rgba(36, 31, 23, 0.24);
+}
+
+.file-dialog {
+  width: min(480px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid rgba(80, 73, 60, 0.14);
+  border-radius: 20px;
+  background: var(--paper);
+  box-shadow: 0 30px 90px rgba(36, 31, 23, 0.24);
+}
+
+.file-dialog::backdrop {
+  background: rgba(31, 30, 27, 0.4);
+  backdrop-filter: blur(5px);
+}
+
+.file-dialog-card {
+  padding: 24px;
+}
+
+.file-name-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+  color: #71736c;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.file-name-field input {
+  width: 100%;
+  height: 44px;
+  padding: 0 13px;
+  border: 1px solid #d6d1c7;
+  border-radius: 10px;
+  outline: none;
+  background: white;
+  color: var(--ink);
+  font-family: var(--code-font);
+  font-size: 13px;
+}
+
+.file-name-field input:focus {
+  border-color: #9d8e7c;
+  box-shadow: 0 0 0 3px rgba(242, 106, 61, 0.08);
+}
+
+.file-dialog-error {
+  min-height: 18px;
+  margin: 8px 1px 5px;
+  color: #b3402b;
+  font-size: 10px;
+}
+
+.file-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .stdin-card {

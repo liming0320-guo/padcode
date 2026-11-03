@@ -8,6 +8,7 @@ PadCode 是一个为 iPad 和触控设备优化的浏览器代码工作台。它
 - VS Code 风格资源管理器、全局搜索、问题、检查点和扩展状态面板
 - `F1` 或 `Shift+Cmd+P` 命令面板，提供保存、运行、格式化、搜索等操作
 - HTML、CSS、JavaScript 多文件编辑
+- 新建、重命名和删除自定义文件，刷新后自动恢复
 - Python、Java、C、C++ 独立代码草稿与语法高亮
 - Python、Java、C、C++ 的一键复制和 OneCompiler 在线运行入口
 - 实时网页预览与可折叠控制台

@@ -100,6 +100,18 @@
     editorHost: document.querySelector("#editorHost"),
     fallbackEditor: document.querySelector("#fallbackEditor"),
     activeFilename: document.querySelector("#activeFilename"),
+    fileTabs: document.querySelector(".file-tabs"),
+    newFileTabButton: document.querySelector("#newFileTabButton"),
+    drawerNewFileButton: document.querySelector("#drawerNewFileButton"),
+    customFileTree: document.querySelector("#customFileTree"),
+    customFileCount: document.querySelector("#customFileCount"),
+    activeFileActions: document.querySelector("#activeFileActions"),
+    renameFileButton: document.querySelector("#renameFileButton"),
+    deleteFileButton: document.querySelector("#deleteFileButton"),
+    fileDialog: document.querySelector("#fileDialog"),
+    fileForm: document.querySelector("#fileForm"),
+    newFileNameInput: document.querySelector("#newFileNameInput"),
+    fileDialogError: document.querySelector("#fileDialogError"),
     languageSelect: document.querySelector("#languageSelect"),
     templateButtonLabel: document.querySelector("#templateButtonLabel"),
     cursorPosition: document.querySelector("#cursorPosition"),
@@ -178,8 +190,11 @@
   const state = {
     files: savedProject.files,
     codeProjects: savedProject.codeProjects,
+    customFiles: savedProject.customFiles,
     activeLanguage: savedProject.activeLanguage,
     activeFile: savedProject.activeFile,
+    activeDocumentKind: savedProject.activeDocumentKind,
+    activeCustomFileId: savedProject.activeCustomFileId,
     cursors: {},
     autoRun: readAutoRunPreference(),
   };
@@ -205,6 +220,8 @@
     const requestedLanguage = new URLSearchParams(window.location.search).get("lang");
     if (requestedLanguage && LANGUAGE_CONFIG[requestedLanguage]) {
       state.activeLanguage = requestedLanguage;
+      state.activeDocumentKind = requestedLanguage === "web" ? "web" : "code";
+      state.activeCustomFileId = null;
     }
     elements.autoRunToggle.checked = state.autoRun;
     updateShortcutLabels();
@@ -214,7 +231,20 @@
   }
 
   function startWorkbench() {
-    activateLanguage(state.activeLanguage, { focus: false, persist: false, run: false });
+    if (
+      state.activeDocumentKind === "custom" &&
+      getCustomFile(state.activeCustomFileId)
+    ) {
+      activateCustomFile(state.activeCustomFileId, {
+        focus: false,
+        persist: false,
+        run: false,
+      });
+    } else {
+      activateLanguage(state.activeLanguage, { focus: false, persist: false, run: false });
+    }
+    renderCustomFileTree();
+    renderFileTabs();
     setView(new URLSearchParams(window.location.search).get("view") === "preview" ? "preview" : "code");
     saveNow();
     if (isWebLanguage()) {
@@ -229,11 +259,37 @@
   }
 
   function bindControls() {
-    document.querySelectorAll(".file-tab").forEach(function (button) {
-      button.addEventListener("click", function () {
+    elements.fileTabs.addEventListener("click", function (event) {
+      const button = event.target.closest(".file-tab");
+      if (!button) {
+        return;
+      }
+      if (button.dataset.customId) {
+        activateCustomFile(button.dataset.customId);
+      } else if (button.dataset.codeLanguage) {
+        activateLanguage(button.dataset.codeLanguage);
+      } else if (button.dataset.file) {
+        activateLanguage("web");
         switchFile(button.dataset.file);
+      }
+    });
+
+    elements.newFileTabButton.addEventListener("click", openFileDialog);
+    elements.drawerNewFileButton.addEventListener("click", openFileDialog);
+    elements.fileForm.addEventListener("submit", handleNewFileSubmit);
+    elements.fileDialog.querySelectorAll("[data-close-file-dialog]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        elements.fileDialog.close();
       });
     });
+    elements.fileDialog.addEventListener("click", function (event) {
+      if (event.target === elements.fileDialog) {
+        elements.fileDialog.close();
+      }
+    });
+    elements.customFileTree.addEventListener("click", handleCustomFileTreeClick);
+    elements.renameFileButton.addEventListener("click", renameActiveCustomFile);
+    elements.deleteFileButton.addEventListener("click", deleteActiveCustomFile);
 
     elements.languageSelect.addEventListener("change", function () {
       activateLanguage(elements.languageSelect.value);
@@ -598,9 +654,7 @@
     function selectModel(value, mode) {
       const nextKey = getCursorKey();
       const language = getLanguage(mode);
-      const activeName = FILE_CONFIG[state.activeFile]
-        ? FILE_CONFIG[state.activeFile].name
-        : "source.txt";
+      const activeName = getActiveFileName();
       let model = models.get(nextKey);
 
       if (!model) {
@@ -752,22 +806,85 @@
   }
 
   function isWebLanguage() {
-    return state.activeLanguage === "web";
+    return state.activeDocumentKind === "web";
+  }
+
+  function getCustomFile(id) {
+    return state.customFiles.find(function (file) {
+      return file.id === id;
+    });
+  }
+
+  function getFileExtension(filename) {
+    const parts = String(filename || "").toLowerCase().split(".");
+    return parts.length > 1 ? parts.pop() : "";
+  }
+
+  function getModeForFilename(filename) {
+    const extension = getFileExtension(filename);
+    const modes = {
+      html: "htmlmixed",
+      htm: "htmlmixed",
+      css: "css",
+      js: "javascript",
+      mjs: "javascript",
+      cjs: "javascript",
+      json: "javascript",
+      py: "python",
+      java: "text/x-java",
+      c: "text/x-csrc",
+      h: "text/x-csrc",
+      cpp: "text/x-c++src",
+      cc: "text/x-c++src",
+      cxx: "text/x-c++src",
+      hpp: "text/x-c++src",
+    };
+    return modes[extension] || "text/plain";
+  }
+
+  function getLanguageForFilename(filename) {
+    const extension = getFileExtension(filename);
+    if (extension === "py") return "python";
+    if (extension === "java") return "java";
+    if (["c", "h"].includes(extension)) return "c";
+    if (["cpp", "cc", "cxx", "hpp"].includes(extension)) return "cpp";
+    return "web";
+  }
+
+  function getActiveFileName() {
+    if (state.activeDocumentKind === "custom") {
+      const file = getCustomFile(state.activeCustomFileId);
+      return file ? file.name : "untitled.txt";
+    }
+    return isWebLanguage()
+      ? FILE_CONFIG[state.activeFile].name
+      : LANGUAGE_CONFIG[state.activeLanguage].fileName;
   }
 
   function getActiveMode() {
+    if (state.activeDocumentKind === "custom") {
+      const file = getCustomFile(state.activeCustomFileId);
+      return file ? getModeForFilename(file.name) : "text/plain";
+    }
     return isWebLanguage()
       ? FILE_CONFIG[state.activeFile].mode
       : LANGUAGE_CONFIG[state.activeLanguage].mode;
   }
 
   function getCursorKey() {
+    if (state.activeDocumentKind === "custom") {
+      return "custom:" + state.activeCustomFileId;
+    }
     return isWebLanguage()
       ? "web:" + state.activeFile
       : "code:" + state.activeLanguage;
   }
 
   function getActiveSource() {
+    if (state.activeDocumentKind === "custom") {
+      const file = getCustomFile(state.activeCustomFileId);
+      return file ? file.content : "";
+    }
     if (isWebLanguage()) {
       return state.files[state.activeFile] || "";
     }
@@ -775,6 +892,13 @@
   }
 
   function setActiveSource(value) {
+    if (state.activeDocumentKind === "custom") {
+      const file = getCustomFile(state.activeCustomFileId);
+      if (file) {
+        file.content = value;
+      }
+      return;
+    }
     if (isWebLanguage()) {
       state.files[state.activeFile] = value;
       return;
@@ -793,6 +917,8 @@
     }
 
     state.activeLanguage = language;
+    state.activeDocumentKind = language === "web" ? "web" : "code";
+    state.activeCustomFileId = null;
     const config = LANGUAGE_CONFIG[language];
     const webLanguage = isWebLanguage();
     elements.languageSelect.value = language;
@@ -808,26 +934,10 @@
     elements.assistantButton.disabled = false;
     elements.assistantButton.title = "";
 
-    const cssTab = document.querySelector('.file-tab[data-file="css"]');
-    const jsTab = document.querySelector('.file-tab[data-file="js"]');
-    const htmlTab = document.querySelector('.file-tab[data-file="html"]');
-    cssTab.hidden = !webLanguage;
-    jsTab.hidden = !webLanguage;
-
     if (webLanguage) {
       switchFile(state.activeFile, settings);
     } else {
       state.activeFile = "html";
-      document.querySelectorAll(".file-tab").forEach(function (button) {
-        const active = button.dataset.file === "html";
-        button.classList.toggle("is-active", active);
-        button.setAttribute("aria-selected", String(active));
-        const label = button.querySelector("[data-file-label]");
-        if (label && button.dataset.file === "html") {
-          label.textContent = config.fileName;
-        }
-      });
-
       const nextSource = state.codeProjects[language].source;
       if (editor) {
         editor.setOption("mode", config.mode);
@@ -842,6 +952,11 @@
       updateAIContext();
       renderCodeIdle();
     }
+
+    elements.activeFileActions.hidden = true;
+    renderFileTabs();
+    renderCustomFileTree();
+    updateTreeSelection();
 
     if (settings.focus) {
       if (editor) {
@@ -859,6 +974,410 @@
       runCurrent({ showPreview: true });
     }
     updateTreeSelection();
+  }
+
+  function activateCustomFile(id, options) {
+    const file = getCustomFile(id);
+    if (!file) {
+      return;
+    }
+
+    const settings = Object.assign({ focus: true, persist: true, run: false }, options);
+    if (editor) {
+      state.cursors[getCursorKey()] = editor.getCursor();
+    }
+
+    state.activeDocumentKind = "custom";
+    state.activeCustomFileId = id;
+    state.activeLanguage = getLanguageForFilename(file.name);
+    const config = getCustomFileConfig(file);
+    const mode = getModeForFilename(file.name);
+
+    elements.languageSelect.value = state.activeLanguage;
+    elements.appShell.classList.add("is-code-language");
+    elements.autoRunToggle.disabled = true;
+    elements.autoRunToggle.closest(".live-toggle").classList.add("is-disabled");
+    elements.autoRunLabel.textContent = "独立文件";
+    elements.templateButtonLabel.textContent = "新建";
+    const runLabel = elements.runButton.querySelector("span");
+    if (runLabel) {
+      runLabel.textContent = config.externalSlug ? "在线运行" : "预览";
+    }
+
+    if (editor) {
+      editor.setOption("mode", mode);
+      editor.setValue(file.content || "");
+      editor.setCursor(state.cursors["custom:" + id] || { line: 0, ch: 0 });
+    } else {
+      elements.fallbackEditor.value = file.content || "";
+    }
+
+    elements.activeFilename.textContent = file.name;
+    elements.activeFileActions.hidden = false;
+    updateCursorPosition();
+    updateAIContext();
+    renderFileTabs();
+    renderCustomFileTree();
+    updateTreeSelection();
+
+    if (mode === "htmlmixed") {
+      runPreview({ clearConsole: true });
+    } else {
+      elements.previewFrame.srcdoc = buildTerminalDocument(
+        file.name,
+        "这是一个独立文件，内容会自动保存在 iPad 浏览器中。\n\n" +
+          (config.externalSlug
+            ? "点击“在线运行”会复制代码并打开 OneCompiler。"
+            : "点击顶部“存到文件”可以保存到 iPad 的“文件”App。"),
+        "idle"
+      );
+      elements.previewTimestamp.textContent = "文件已保存";
+    }
+
+    if (settings.focus) {
+      if (editor) editor.focus();
+      else elements.fallbackEditor.focus();
+    }
+    if (settings.persist) {
+      scheduleSave();
+    }
+    if (settings.run) {
+      runCurrent({ showPreview: true });
+    }
+  }
+
+  function getCustomFileConfig(file) {
+    const extension = getFileExtension(file.name);
+    const externalSlugs = {
+      py: "python",
+      java: "java",
+      c: "c",
+      h: "c",
+      cpp: "cpp",
+      cc: "cpp",
+      cxx: "cpp",
+      hpp: "cpp",
+      html: "html",
+      htm: "html",
+      css: "css",
+      js: "javascript",
+      mjs: "javascript",
+      cjs: "javascript",
+    };
+    return {
+      fileName: file.name,
+      label: extension ? extension.toUpperCase() : "TEXT",
+      externalSlug: externalSlugs[extension] || null,
+    };
+  }
+
+  function renderFileTabs() {
+    if (!elements.fileTabs) {
+      return;
+    }
+    const tabs = [];
+    const contextLanguage = state.activeLanguage;
+
+    if (contextLanguage === "web") {
+      Object.keys(FILE_CONFIG).forEach(function (key) {
+        const config = FILE_CONFIG[key];
+        tabs.push(
+          createFileTab({
+            label: config.name,
+            dataset: { file: key },
+            active:
+              state.activeDocumentKind === "web" && state.activeFile === key,
+            dotClass: "file-dot-" + key,
+          })
+        );
+      });
+    } else if (LANGUAGE_CONFIG[contextLanguage]) {
+      const config = LANGUAGE_CONFIG[contextLanguage];
+      tabs.push(
+        createFileTab({
+          label: config.fileName,
+          dataset: { codeLanguage: contextLanguage },
+          active:
+            state.activeDocumentKind === "code" &&
+            state.activeLanguage === contextLanguage,
+          dotClass: "file-dot-custom",
+        })
+      );
+    }
+
+    state.customFiles.forEach(function (file) {
+      tabs.push(
+        createFileTab({
+          label: file.name,
+          dataset: { customId: file.id },
+          active:
+            state.activeDocumentKind === "custom" &&
+            state.activeCustomFileId === file.id,
+          dotClass: "file-dot-custom",
+        })
+      );
+    });
+
+    elements.fileTabs.replaceChildren.apply(elements.fileTabs, tabs);
+    const activeTab = elements.fileTabs.querySelector(".file-tab.is-active");
+    if (activeTab) {
+      activeTab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  }
+
+  function createFileTab(options) {
+    const button = document.createElement("button");
+    const dot = document.createElement("span");
+    const label = document.createElement("span");
+    button.type = "button";
+    button.className = "file-tab" + (options.active ? " is-active" : "");
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-selected", String(options.active));
+    if (options.dataset.file) button.dataset.file = options.dataset.file;
+    if (options.dataset.codeLanguage) {
+      button.dataset.codeLanguage = options.dataset.codeLanguage;
+    }
+    if (options.dataset.customId) button.dataset.customId = options.dataset.customId;
+    dot.className = "file-dot " + options.dotClass;
+    dot.setAttribute("aria-hidden", "true");
+    label.textContent = options.label;
+    button.append(dot, label);
+    return button;
+  }
+
+  function renderCustomFileTree() {
+    if (!elements.customFileTree) {
+      return;
+    }
+    elements.customFileTree.replaceChildren();
+    elements.customFileCount.textContent = String(state.customFiles.length);
+
+    state.customFiles.forEach(function (file) {
+      const row = document.createElement("div");
+      const openButton = document.createElement("button");
+      const icon = document.createElement("span");
+      const name = document.createElement("span");
+      const rename = document.createElement("button");
+      const remove = document.createElement("button");
+      const filename = file.name.split("/").pop();
+      const extension = getFileExtension(file.name);
+      row.className = "tree-custom-row";
+      openButton.type = "button";
+      openButton.className = "tree-file";
+      openButton.dataset.customFile = file.id;
+      openButton.classList.toggle(
+        "is-active",
+        state.activeDocumentKind === "custom" && state.activeCustomFileId === file.id
+      );
+      icon.className = "file-icon";
+      icon.textContent = (extension || "TXT").slice(0, 3).toUpperCase();
+      name.textContent = filename;
+      name.title = file.name;
+      openButton.append(icon, name);
+      rename.type = "button";
+      rename.className = "tree-file-action";
+      rename.dataset.renameFile = file.id;
+      rename.title = "重命名";
+      rename.setAttribute("aria-label", "重命名 " + filename);
+      rename.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 20 4.5-1 10-10-3.5-3.5-10 10L4 20Z"/><path d="m13.5 7 3.5 3.5"/></svg>';
+      remove.type = "button";
+      remove.className = "tree-file-action is-danger";
+      remove.dataset.deleteFile = file.id;
+      remove.title = "删除";
+      remove.setAttribute("aria-label", "删除 " + filename);
+      remove.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg>';
+      row.append(openButton, rename, remove);
+      elements.customFileTree.append(row);
+    });
+  }
+
+  function handleCustomFileTreeClick(event) {
+    if (event.target.closest("[data-new-file]")) {
+      openFileDialog();
+      return;
+    }
+    const remove = event.target.closest("[data-delete-file]");
+    if (remove) {
+      deleteCustomFile(remove.dataset.deleteFile);
+      return;
+    }
+    const rename = event.target.closest("[data-rename-file]");
+    if (rename) {
+      renameCustomFile(rename.dataset.renameFile);
+      return;
+    }
+    const open = event.target.closest("[data-custom-file]");
+    if (open) {
+      activateCustomFile(open.dataset.customFile);
+      closeWorkbench();
+    }
+  }
+
+  function openFileDialog() {
+    elements.fileDialogError.textContent = "";
+    elements.newFileNameInput.value = nextUntitledName();
+    if (typeof elements.fileDialog.showModal === "function") {
+      elements.fileDialog.showModal();
+    } else {
+      elements.fileDialog.setAttribute("open", "");
+    }
+    window.setTimeout(function () {
+      elements.newFileNameInput.focus();
+      elements.newFileNameInput.select();
+    }, 40);
+  }
+
+  function handleNewFileSubmit(event) {
+    const submitter = event.submitter;
+    if (submitter && submitter.value === "cancel") {
+      return;
+    }
+    event.preventDefault();
+    const name = normalizeNewFileName(elements.newFileNameInput.value);
+    const validation = validateNewFileName(name);
+    if (validation) {
+      elements.fileDialogError.textContent = validation;
+      elements.newFileNameInput.focus();
+      return;
+    }
+
+    const file = {
+      id: createFileId(),
+      name: name,
+      content: starterContentForFile(name),
+    };
+    state.customFiles.push(file);
+    elements.fileDialog.close();
+    saveNow();
+    activateCustomFile(file.id);
+    showToast(name + " 已创建。");
+  }
+
+  function nextUntitledName() {
+    let index = 1;
+    let name = "untitled.txt";
+    while (fileNameExists(name)) {
+      index += 1;
+      name = "untitled-" + index + ".txt";
+    }
+    return name;
+  }
+
+  function normalizeNewFileName(value) {
+    return String(value || "")
+      .trim()
+      .replace(/\\/g, "/")
+      .replace(/^\/+/, "")
+      .replace(/\/{2,}/g, "/");
+  }
+
+  function validateNewFileName(name, ignoredId) {
+    if (!name) return "请输入文件名。";
+    if (name.length > 120) return "文件名不能超过 120 个字符。";
+    if (
+      name.split("/").some(function (part) {
+        return part === "." || part === "..";
+      })
+    ) {
+      return "文件名不能包含 . 或 .. 路径。";
+    }
+    if (/[<>:"|?*]/.test(name)) return "文件名包含不支持的字符。";
+    if (fileNameExists(name, ignoredId)) return "已经有同名文件。";
+    return "";
+  }
+
+  function fileNameExists(name, ignoredId) {
+    const normalized = name.toLowerCase();
+    const fixedNames = Object.keys(FILE_CONFIG)
+      .map(function (key) {
+        return FILE_CONFIG[key].name.toLowerCase();
+      })
+      .concat(
+        Object.keys(LANGUAGE_CONFIG)
+          .filter(function (key) {
+            return key !== "web";
+          })
+          .map(function (key) {
+            return LANGUAGE_CONFIG[key].fileName.toLowerCase();
+          })
+      );
+    return (
+      fixedNames.includes(normalized) ||
+      state.customFiles.some(function (file) {
+        return file.id !== ignoredId && file.name.toLowerCase() === normalized;
+      })
+    );
+  }
+
+  function createFileId() {
+    return (
+      "file-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8)
+    );
+  }
+
+  function starterContentForFile(name) {
+    const extension = getFileExtension(name);
+    if (extension === "html" || extension === "htm") {
+      return '<!doctype html>\n<html lang="zh-CN">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <title>新页面</title>\n  </head>\n  <body>\n    <h1>Hello, PadCode!</h1>\n  </body>\n</html>\n';
+    }
+    if (extension === "py") return "# " + name + "\n";
+    if (["js", "mjs", "cjs"].includes(extension)) return "// " + name + "\n";
+    if (extension === "css") return "/* " + name + " */\n";
+    if (extension === "md") return "# " + name.replace(/\.md$/i, "") + "\n";
+    return "";
+  }
+
+  function renameActiveCustomFile() {
+    if (state.activeDocumentKind === "custom") {
+      renameCustomFile(state.activeCustomFileId);
+    }
+  }
+
+  function renameCustomFile(id) {
+    const file = getCustomFile(id);
+    if (!file) return;
+    const nextName = window.prompt("新的文件名", file.name);
+    if (nextName === null) return;
+    const normalized = normalizeNewFileName(nextName);
+    const validation = validateNewFileName(normalized, id);
+    if (validation) {
+      showToast(validation);
+      return;
+    }
+    const previous = file.name;
+    file.name = normalized;
+    saveNow();
+    if (state.activeCustomFileId === id) {
+      activateCustomFile(id, { focus: true, persist: false, run: false });
+    } else {
+      renderCustomFileTree();
+      renderFileTabs();
+    }
+    showToast(previous + " 已重命名为 " + normalized + "。");
+  }
+
+  function deleteActiveCustomFile() {
+    if (state.activeDocumentKind === "custom") {
+      deleteCustomFile(state.activeCustomFileId);
+    }
+  }
+
+  function deleteCustomFile(id) {
+    const file = getCustomFile(id);
+    if (!file) return;
+    if (!window.confirm("删除文件“" + file.name + "”？此操作无法撤销。")) return;
+    state.customFiles = state.customFiles.filter(function (item) {
+      return item.id !== id;
+    });
+    if (state.activeDocumentKind === "custom" && state.activeCustomFileId === id) {
+      state.activeCustomFileId = null;
+      activateLanguage("web");
+    } else {
+      renderCustomFileTree();
+      renderFileTabs();
+    }
+    saveNow();
+    showToast(file.name + " 已删除。");
   }
 
   function switchFile(key, options) {
@@ -891,15 +1410,9 @@
       }
     }
 
-    document.querySelectorAll(".file-tab").forEach(function (button) {
-      const isActive = button.dataset.file === key;
-      button.classList.toggle("is-active", isActive);
-      button.setAttribute("aria-selected", String(isActive));
-    });
-
     elements.activeFilename.textContent = FILE_CONFIG[key].name;
-    document.querySelector('.file-tab[data-file="html"] [data-file-label]').textContent =
-      FILE_CONFIG.html.name;
+    elements.activeFileActions.hidden = true;
+    renderFileTabs();
     updateCursorPosition();
     updateAIContext();
 
@@ -917,7 +1430,7 @@
     setActiveSource(editor.getValue());
     scheduleSave();
 
-    if (isWebLanguage() && state.autoRun) {
+    if ((isWebLanguage() || getActiveMode() === "htmlmixed") && state.autoRun) {
       schedulePreview();
     } else {
       elements.previewTimestamp.textContent = isWebLanguage() ? "有更改，尚未运行" : "已保存 · 点击运行";
@@ -928,7 +1441,7 @@
     setActiveSource(elements.fallbackEditor.value);
     scheduleSave();
     updateFallbackCursor();
-    if (isWebLanguage() && state.autoRun) {
+    if ((isWebLanguage() || getActiveMode() === "htmlmixed") && state.autoRun) {
       schedulePreview();
     } else {
       elements.previewTimestamp.textContent = isWebLanguage() ? "有更改，尚未运行" : "已保存 · 点击运行";
@@ -985,8 +1498,11 @@
           version: 2,
           files: state.files,
           codeProjects: state.codeProjects,
+          customFiles: state.customFiles,
           activeLanguage: state.activeLanguage,
           activeFile: state.activeFile,
+          activeDocumentKind: state.activeDocumentKind,
+          activeCustomFileId: state.activeCustomFileId,
           updatedAt: new Date().toISOString(),
         })
       );
@@ -1005,7 +1521,7 @@
 
   function schedulePreview() {
     window.clearTimeout(previewTimer);
-    if (!isWebLanguage()) {
+    if (!isWebLanguage() && getActiveMode() !== "htmlmixed") {
       return;
     }
     previewTimer = window.setTimeout(function () {
@@ -1038,7 +1554,7 @@
   }
 
   function runCurrent(options) {
-    if (isWebLanguage()) {
+    if (isWebLanguage() || getActiveMode() === "htmlmixed") {
       runPreview({ clearConsole: true });
       return;
     }
@@ -1047,10 +1563,21 @@
 
   function openExternalRunner() {
     const language = state.activeLanguage;
-    const config = LANGUAGE_CONFIG[language];
-    const project = state.codeProjects[language];
-    const slug = { python: "python", java: "java", c: "c", cpp: "cpp" }[language];
-    const copied = copyText(project.source);
+    const customFile = getCustomFile(state.activeCustomFileId);
+    const config = customFile
+      ? getCustomFileConfig(customFile)
+      : LANGUAGE_CONFIG[language];
+    const source = customFile
+      ? customFile.content
+      : state.codeProjects[language].source;
+    const slug = customFile
+      ? config.externalSlug
+      : { python: "python", java: "java", c: "c", cpp: "cpp" }[language];
+    if (!slug) {
+      showToast("这个文件类型没有在线运行器，可以使用“存到文件”保存。");
+      return;
+    }
+    const copied = copyText(source);
     window.open("https://onecompiler.com/" + slug, "_blank", "noopener");
 
     elements.previewFrame.srcdoc = buildTerminalDocument(
@@ -1328,7 +1855,14 @@
   }
 
   function buildPreviewDocument(includeConsoleBridge) {
-    let documentSource = state.files.html || "<!doctype html><html><head></head><body></body></html>";
+    const customFile = getCustomFile(state.activeCustomFileId);
+    let documentSource =
+      state.activeDocumentKind === "custom" &&
+      customFile &&
+      getFileExtension(customFile.name) === "html"
+        ? customFile.content
+        : state.files.html || "<!doctype html><html><head></head><body></body></html>";
+    documentSource = inlineCustomHtmlAssets(documentSource);
     const css = state.files.css || "";
     const js = (state.files.js || "").replace(/<\/script/gi, "<\\/script");
     const styleTag = "<style>" + css.replace(/<\/style/gi, "<\\/style") + "</style>";
@@ -1351,6 +1885,41 @@
     }
 
     return documentSource;
+  }
+
+  function inlineCustomHtmlAssets(source) {
+    let result = String(source || "");
+    result = result.replace(
+      /<link\b([^>]*?)\bhref=["']([^"']+)["']([^>]*)>/gi,
+      function (tag, before, href, after) {
+        if (!/\brel=["']?stylesheet/i.test(before + " " + after)) {
+          return tag;
+        }
+        const asset = findCustomAsset(href);
+        return asset
+          ? "<style>" + asset.content.replace(/<\/style/gi, "<\\/style") + "</style>"
+          : tag;
+      }
+    );
+    result = result.replace(
+      /<script\b([^>]*?)\bsrc=["']([^"']+)["']([^>]*)>\s*<\/script>/gi,
+      function (tag, _before, src) {
+        const asset = findCustomAsset(src);
+        return asset
+          ? "<script>" + asset.content.replace(/<\/script/gi, "<\\/script") + "</script>"
+          : tag;
+      }
+    );
+    return result;
+  }
+
+  function findCustomAsset(path) {
+    const normalized = String(path || "")
+      .replace(/^\.\//, "")
+      .toLowerCase();
+    return state.customFiles.find(function (file) {
+      return file.name.toLowerCase() === normalized;
+    });
   }
 
   function buildConsoleBridge() {
@@ -1565,10 +2134,8 @@
       button.classList.toggle("is-active", active);
     });
 
-    const filename = isWebLanguage()
-      ? FILE_CONFIG[state.activeFile].name
-      : LANGUAGE_CONFIG[state.activeLanguage].fileName;
-    elements.openEditorLabel.textContent = filename;
+    elements.openEditorLabel.textContent = getActiveFileName();
+    renderCustomFileTree();
   }
 
   function getSearchEntries() {
@@ -1593,6 +2160,14 @@
           content: state.codeProjects[language].source || "",
         });
       });
+    state.customFiles.forEach(function (file) {
+      entries.push({
+        kind: "custom",
+        key: file.id,
+        filename: file.name,
+        content: file.content || "",
+      });
+    });
     return entries;
   }
 
@@ -1651,6 +2226,8 @@
     if (button.dataset.searchKind === "web") {
       activateLanguage("web");
       switchFile(button.dataset.searchKey, { focus: false, preservePreview: true });
+    } else if (button.dataset.searchKind === "custom") {
+      activateCustomFile(button.dataset.searchKey, { focus: false });
     } else {
       activateLanguage(button.dataset.searchKey, { focus: false });
     }
@@ -1668,6 +2245,7 @@
       savedAt: new Date().toISOString(),
       files: Object.assign({}, state.files),
       codeProjects: JSON.parse(JSON.stringify(state.codeProjects)),
+      customFiles: JSON.parse(JSON.stringify(state.customFiles)),
     };
   }
 
@@ -1800,8 +2378,11 @@
       js: checkpoint.files.js || "",
     };
     state.codeProjects = normalizeCodeProjects(checkpoint.codeProjects);
+    state.customFiles = normalizeCustomFiles(checkpoint.customFiles);
     state.activeLanguage = "web";
     state.activeFile = "html";
+    state.activeDocumentKind = "web";
+    state.activeCustomFileId = null;
     saveNow();
     activateLanguage("web");
     switchFile("html");
@@ -1823,9 +2404,7 @@
       .map(function (entry) {
         return {
           message: entry.text,
-          filename: isWebLanguage()
-            ? FILE_CONFIG[state.activeFile].name
-            : LANGUAGE_CONFIG[state.activeLanguage].fileName,
+          filename: getActiveFileName(),
           line: 0,
           column: 0,
           severity: "预运行错误",
@@ -2348,16 +2927,16 @@
   }
 
   function updateAIContext() {
-    const activeName = FILE_CONFIG[state.activeFile]
-      ? FILE_CONFIG[state.activeFile].name
-      : "index.html";
+    const activeName = getActiveFileName();
     const errorCount = consoleLogs.filter(function (entry) {
       return entry.type === "error";
     }).length;
     elements.aiContextLabel.textContent =
       "当前文件 " +
       activeName +
-      " · 3 个文件" +
+      " · " +
+      (Object.keys(FILE_CONFIG).length + state.customFiles.length) +
+      " 个文件" +
       (errorCount ? " · " + errorCount + " 个错误" : "");
   }
 
@@ -2762,6 +3341,10 @@
       openTemplateDialog();
       return;
     }
+    if (state.activeDocumentKind === "custom") {
+      openFileDialog();
+      return;
+    }
 
     const config = LANGUAGE_CONFIG[state.activeLanguage];
     if (!window.confirm("将 " + config.fileName + " 恢复为初始示例代码？")) {
@@ -2881,14 +3464,9 @@
           type: "text/html",
         }
       : {
-          filename: LANGUAGE_CONFIG[state.activeLanguage].fileName,
-          content: state.codeProjects[state.activeLanguage].source,
-          type:
-            state.activeLanguage === "python"
-              ? "text/x-python"
-              : state.activeLanguage === "java"
-                ? "text/x-java"
-                : "text/x-csrc",
+          filename: getActiveFileName(),
+          content: getActiveSource(),
+          type: getMimeTypeForFilename(getActiveFileName()),
         };
 
     const file = new File([payload.content], payload.filename, {
@@ -2916,6 +3494,28 @@
 
     downloadBlob(payload.content, payload.filename, file.type);
     showToast("文件已下载到 iPad 的“下载”文件夹。");
+  }
+
+  function getMimeTypeForFilename(filename) {
+    const extension = getFileExtension(filename);
+    const types = {
+      html: "text/html",
+      htm: "text/html",
+      css: "text/css",
+      js: "text/javascript",
+      mjs: "text/javascript",
+      json: "application/json",
+      md: "text/markdown",
+      py: "text/x-python",
+      java: "text/x-java",
+      c: "text/x-csrc",
+      h: "text/x-csrc",
+      cpp: "text/x-c++src",
+      cc: "text/x-c++src",
+      cxx: "text/x-c++src",
+      hpp: "text/x-c++src",
+    };
+    return types[extension] || "text/plain";
   }
 
   function isIPadOS() {
@@ -3035,6 +3635,12 @@
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && parsed.files) {
+          const customFiles = normalizeCustomFiles(parsed.customFiles);
+          const requestedCustomId =
+            typeof parsed.activeCustomFileId === "string" ? parsed.activeCustomFileId : null;
+          const hasRequestedCustom = customFiles.some(function (file) {
+            return file.id === requestedCustomId;
+          });
           return {
             files: {
               html:
@@ -3049,10 +3655,18 @@
                 typeof parsed.files.js === "string" ? parsed.files.js : TEMPLATES.starter.js,
             },
             codeProjects: normalizeCodeProjects(parsed.codeProjects),
+            customFiles: customFiles,
             activeLanguage: LANGUAGE_CONFIG[parsed.activeLanguage]
               ? parsed.activeLanguage
               : "web",
             activeFile: FILE_CONFIG[parsed.activeFile] ? parsed.activeFile : "html",
+            activeDocumentKind:
+              parsed.activeDocumentKind === "custom" && hasRequestedCustom
+                ? "custom"
+                : parsed.activeLanguage && parsed.activeLanguage !== "web"
+                  ? "code"
+                  : "web",
+            activeCustomFileId: hasRequestedCustom ? requestedCustomId : null,
           };
         }
       }
@@ -3067,9 +3681,43 @@
         js: TEMPLATES.starter.js,
       },
       codeProjects: normalizeCodeProjects(null),
+      customFiles: [],
       activeLanguage: "web",
       activeFile: "html",
+      activeDocumentKind: "web",
+      activeCustomFileId: null,
     };
+  }
+
+  function normalizeCustomFiles(savedFiles) {
+    if (!Array.isArray(savedFiles)) {
+      return [];
+    }
+    const seenNames = new Set();
+    return savedFiles
+      .filter(function (file) {
+        return (
+          file &&
+          typeof file.id === "string" &&
+          typeof file.name === "string" &&
+          typeof file.content === "string"
+        );
+      })
+      .filter(function (file) {
+        const normalized = file.name.trim().toLowerCase();
+        if (!normalized || seenNames.has(normalized)) {
+          return false;
+        }
+        seenNames.add(normalized);
+        return true;
+      })
+      .map(function (file) {
+        return {
+          id: file.id,
+          name: normalizeNewFileName(file.name),
+          content: file.content,
+        };
+      });
   }
 
   function normalizeCodeProjects(savedProjects) {
