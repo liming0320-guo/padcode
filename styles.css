@@ -902,19 +902,20 @@ svg {
 }
 
 .button-ai {
-  border-color: #f0c9b9;
-  background: #fff2e9;
-  color: #a43f1c;
+  border-color: #e75b2e;
+  background: #f26a3d;
+  box-shadow: 0 5px 16px rgba(217, 76, 33, 0.2);
+  color: #fff;
 }
 
 .button-ai:hover {
-  border-color: #e8b29b;
-  background: #ffe8db;
+  border-color: #d94c21;
+  background: #dd572c;
 }
 
 .button-ai svg {
-  fill: rgba(242, 106, 61, 0.1);
-  stroke: #c84d24;
+  fill: rgba(255, 255, 255, 0.12);
+  stroke: #fff;
 }
 
 .button kbd {
@@ -1378,12 +1379,12 @@ svg {
 }
 
 .cm-s-padcode .cm-comment {
-  color: #637084;
+  color: #6a9955;
   font-style: italic;
 }
 
 .cm-s-padcode .cm-tag {
-  color: #ff8e71;
+  color: #569cd6;
 }
 
 .cm-s-padcode .cm-bracket {
@@ -1391,33 +1392,33 @@ svg {
 }
 
 .cm-s-padcode .cm-attribute {
-  color: #f3cb71;
+  color: #9cdcfe;
 }
 
 .cm-s-padcode .cm-string {
-  color: #9bdcb2;
+  color: #ce9178;
 }
 
 .cm-s-padcode .cm-keyword {
-  color: #ff9fb1;
+  color: #c586c0;
 }
 
 .cm-s-padcode .cm-def,
 .cm-s-padcode .cm-variable-2 {
-  color: #c9b4ff;
+  color: #dcdcaa;
 }
 
 .cm-s-padcode .cm-property {
-  color: #85d4d0;
+  color: #9cdcfe;
 }
 
 .cm-s-padcode .cm-number,
 .cm-s-padcode .cm-atom {
-  color: #f3bc72;
+  color: #b5cea8;
 }
 
 .cm-s-padcode .cm-variable {
-  color: #d5ddeb;
+  color: #9cdcfe;
 }
 
 .cm-s-padcode .cm-operator {
@@ -1425,7 +1426,13 @@ svg {
 }
 
 .cm-s-padcode .cm-qualifier {
-  color: #8fd2ff;
+  color: #4ec9b0;
+}
+
+.cm-s-padcode .cm-builtin,
+.cm-s-padcode .cm-variable-3,
+.cm-s-padcode .cm-type {
+  color: #4ec9b0;
 }
 
 .statusbar {

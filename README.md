@@ -5,6 +5,7 @@ PadCode 是一个为 iPad 和触控设备优化的浏览器代码工作台。它
 ## 功能
 
 - 使用 Monaco Editor：多光标、自动补全、参数提示、折叠、括号配对、minimap、查找替换
+- 接近 VS Code Dark+ 的语法配色，区分关键字、字符串、数字、类型、函数和 HTML 标签
 - VS Code 风格资源管理器、全局搜索、问题、检查点和扩展状态面板
 - `F1` 或 `Shift+Cmd+P` 命令面板，提供保存、运行、格式化、搜索等操作
 - HTML、CSS、JavaScript 多文件编辑

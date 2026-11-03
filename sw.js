@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "padcode-shell-v8";
+const CACHE_NAME = "padcode-shell-v9";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -923,19 +923,20 @@ svg {
 }
 
 .button-ai {
-  border-color: #f0c9b9;
-  background: #fff2e9;
-  color: #a43f1c;
+  border-color: #e75b2e;
+  background: #f26a3d;
+  box-shadow: 0 5px 16px rgba(217, 76, 33, 0.2);
+  color: #fff;
 }
 
 .button-ai:hover {
-  border-color: #e8b29b;
-  background: #ffe8db;
+  border-color: #d94c21;
+  background: #dd572c;
 }
 
 .button-ai svg {
-  fill: rgba(242, 106, 61, 0.1);
-  stroke: #c84d24;
+  fill: rgba(255, 255, 255, 0.12);
+  stroke: #fff;
 }
 
 .button kbd {
@@ -1399,12 +1400,12 @@ svg {
 }
 
 .cm-s-padcode .cm-comment {
-  color: #637084;
+  color: #6a9955;
   font-style: italic;
 }
 
 .cm-s-padcode .cm-tag {
-  color: #ff8e71;
+  color: #569cd6;
 }
 
 .cm-s-padcode .cm-bracket {
@@ -1412,33 +1413,33 @@ svg {
 }
 
 .cm-s-padcode .cm-attribute {
-  color: #f3cb71;
+  color: #9cdcfe;
 }
 
 .cm-s-padcode .cm-string {
-  color: #9bdcb2;
+  color: #ce9178;
 }
 
 .cm-s-padcode .cm-keyword {
-  color: #ff9fb1;
+  color: #c586c0;
 }
 
 .cm-s-padcode .cm-def,
 .cm-s-padcode .cm-variable-2 {
-  color: #c9b4ff;
+  color: #dcdcaa;
 }
 
 .cm-s-padcode .cm-property {
-  color: #85d4d0;
+  color: #9cdcfe;
 }
 
 .cm-s-padcode .cm-number,
 .cm-s-padcode .cm-atom {
-  color: #f3bc72;
+  color: #b5cea8;
 }
 
 .cm-s-padcode .cm-variable {
-  color: #d5ddeb;
+  color: #9cdcfe;
 }
 
 .cm-s-padcode .cm-operator {
@@ -1446,7 +1447,13 @@ svg {
 }
 
 .cm-s-padcode .cm-qualifier {
-  color: #8fd2ff;
+  color: #4ec9b0;
+}
+
+.cm-s-padcode .cm-builtin,
+.cm-s-padcode .cm-variable-3,
+.cm-s-padcode .cm-type {
+  color: #4ec9b0;
 }
 
 .statusbar {
@@ -3152,7 +3159,7 @@ svg {
               <path d="m12 3 1.55 4.45L18 9l-4.45 1.55L12 15l-1.55-4.45L6 9l4.45-1.55L12 3Z" />
               <path d="m18.5 15 .75 2.25L21.5 18l-2.25.75L18.5 21l-.75-2.25L15.5 18l2.25-.75L18.5 15Z" />
             </svg>
-            <span>AI 助手</span>
+            <span>AI 写代码</span>
           </button>
           <button class="button button-ghost" id="importButton" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -5557,24 +5564,44 @@ var define, AMDLoader;
       base: "vs-dark",
       inherit: true,
       rules: [
-        { token: "comment", foreground: "6F7B8C", fontStyle: "italic" },
-        { token: "keyword", foreground: "FF9FB1" },
-        { token: "string", foreground: "A2DEB5" },
-        { token: "number", foreground: "F2C477" },
-        { token: "tag", foreground: "FF8E71" },
-        { token: "attribute.name", foreground: "F3CB71" },
+        { token: "comment", foreground: "6A9955", fontStyle: "italic" },
+        { token: "keyword", foreground: "C586C0" },
+        { token: "keyword.control", foreground: "C586C0" },
+        { token: "keyword.operator", foreground: "D4D4D4" },
+        { token: "string", foreground: "CE9178" },
+        { token: "string.escape", foreground: "D7BA7D" },
+        { token: "number", foreground: "B5CEA8" },
+        { token: "number.hex", foreground: "B5CEA8" },
+        { token: "regexp", foreground: "D16969" },
+        { token: "type", foreground: "4EC9B0" },
+        { token: "type.identifier", foreground: "4EC9B0" },
+        { token: "identifier", foreground: "9CDCFE" },
+        { token: "variable", foreground: "9CDCFE" },
+        { token: "variable.name", foreground: "9CDCFE" },
+        { token: "function", foreground: "DCDCAA" },
+        { token: "delimiter", foreground: "D4D4D4" },
+        { token: "operator", foreground: "D4D4D4" },
+        { token: "annotation", foreground: "DCDCAA" },
+        { token: "tag", foreground: "569CD6" },
+        { token: "tag.id", foreground: "569CD6" },
+        { token: "attribute.name", foreground: "9CDCFE" },
+        { token: "attribute.value", foreground: "CE9178" },
+        { token: "metatag", foreground: "569CD6" },
       ],
       colors: {
         "editor.background": "#10141B",
-        "editor.foreground": "#D9E1EE",
+        "editor.foreground": "#D4D4D4",
         "editorLineNumber.foreground": "#495668",
         "editorLineNumber.activeForeground": "#AAB5C5",
         "editorCursor.foreground": "#FFB46F",
-        "editor.selectionBackground": "#2A3F61",
+        "editor.selectionBackground": "#264F78",
         "editor.inactiveSelectionBackground": "#253652",
-        "editor.lineHighlightBackground": "#141A23",
+        "editor.lineHighlightBackground": "#1B2028",
         "editorIndentGuide.background1": "#252D39",
         "editorIndentGuide.activeBackground1": "#455164",
+        "editorBracketHighlight.foreground1": "#FFD700",
+        "editorBracketHighlight.foreground2": "#DA70D6",
+        "editorBracketHighlight.foreground3": "#179FFF",
         "editorWidget.background": "#171D27",
         "editorWidget.border": "#344050",
         "editorSuggestWidget.background": "#171D27",
@@ -5634,6 +5661,7 @@ var define, AMDLoader;
       scrollBeyondLastLine: false,
       fixedOverflowWidgets: true,
       accessibilitySupport: "auto",
+      "semanticHighlighting.enabled": true,
     });
 
     elements.editorHost.classList.remove("is-hidden");
