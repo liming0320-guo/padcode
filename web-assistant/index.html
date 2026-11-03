@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#111418" />
+    <meta name="description" content="在 iPad 浏览器中连接第三方 Codex 兼容接口的私人 AI 工作台。" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AI 工作台" />
+    <title>AI 工作台 · iPad</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="backdrop" id="backdrop" hidden></div>
+
+    <aside class="sidebar" id="sidebar" aria-label="对话列表">
+      <header class="sidebar-header">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M5 7.5 12 3l7 4.5v9L12 21l-7-4.5v-9Z" />
+              <path d="m8.5 9.5 3.5 2 3.5-2M12 11.5V16" />
+            </svg>
+          </span>
+          <div>
+            <strong>AI 工作台</strong>
+            <small>Connected on iPad</small>
+          </div>
+        </div>
+        <button class="icon-button sidebar-close" id="sidebarCloseButton" type="button" aria-label="关闭对话列表">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>
+        </button>
+      </header>
+
+      <button class="new-chat-button" id="newChatButton" type="button">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+        新对话
+      </button>
+
+      <div class="sidebar-label">最近对话</div>
+      <nav class="conversation-list" id="conversationList" aria-label="最近对话"></nav>
+
+      <footer class="sidebar-footer">
+        <button class="sidebar-action" id="settingsButton" type="button">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19 13.5v-3l-2-.7-.8-1.8.9-1.9-2.1-2.1-1.9.9-1.8-.8-.7-2h-3l-.7 2-1.8.8-1.9-.9-2.1 2.1.9 1.9-.8 1.8-2 .7v3l2 .7.8 1.8-.9 1.9 2.1 2.1 1.9-.9 1.8.8.7 2h3l.7-2 1.8-.8 1.9.9 2.1-2.1-.9-1.9.8-1.8 2-.7Z" />
+          </svg>
+          <span><strong>接口设置</strong><small id="sidebarConnection">还没连接</small></span>
+        </button>
+      </footer>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-button menu-button" id="menuButton" type="button" aria-label="打开对话列表">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        </button>
+        <div class="conversation-heading">
+          <strong id="conversationTitle">新对话</strong>
+          <span id="connectionStatus"><i></i>等待配置接口</span>
+        </div>
+        <div class="topbar-actions">
+          <button class="model-chip" id="topSettingsButton" type="button">未连接</button>
+          <button class="icon-button" id="newChatTopButton" type="button" aria-label="新对话" title="新对话">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <section class="chat-viewport" id="chatViewport">
+        <div class="messages" id="messages" role="log" aria-live="polite"></div>
+
+        <section class="welcome" id="welcome">
+          <div class="welcome-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M5 7.5 12 3l7 4.5v9L12 21l-7-4.5v-9Z" />
+              <path d="m8.5 9.5 3.5 2 3.5-2M12 11.5V16" />
+            </svg>
+          </div>
+          <span class="eyebrow">YOUR CODEX, ON IPAD</span>
+          <h1>今天想一起<br /><em>解决什么？</em></h1>
+          <p>连接你正在使用的第三方兼容接口后，这台 iPad 就能直接与助手对话。</p>
+          <div class="suggestions">
+            <button type="button" data-prompt="帮我制定一个今天可以完成的开发计划，并主动指出风险。">
+              <span>01</span>
+              <strong>制定开发计划</strong>
+              <small>拆解需求并识别风险</small>
+            </button>
+            <button type="button" data-prompt="请检查下面这段代码，说明问题、影响和最小修复方案。\n\n```\n在这里粘贴代码\n```">
+              <span>02</span>
+              <strong>检查代码</strong>
+              <small>定位错误并给出修复</small>
+            </button>
+            <button type="button" data-prompt="我有一个产品想法，请用清晰的问题帮我澄清目标、用户、范围和最小可行版本。">
+              <span>03</span>
+              <strong>梳理产品想法</strong>
+              <small>从模糊想法到可执行方案</small>
+            </button>
+          </div>
+        </section>
+      </section>
+
+      <footer class="composer-shell">
+        <form class="composer" id="composer">
+          <label class="sr-only" for="promptInput">输入消息</label>
+          <textarea id="promptInput" rows="1" placeholder="给助手发送消息…" autocomplete="off" autocapitalize="sentences"></textarea>
+          <div class="composer-footer">
+            <span class="composer-hint">⌘ ↵ 发送</span>
+            <button class="send-button" id="sendButton" type="submit" aria-label="发送消息">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="m4 12 16-8-5 16-3-6-8-2Z" />
+                <path d="m12 14 8-10" />
+              </svg>
+            </button>
+          </div>
+        </form>
+        <p class="composer-note">第三方模型可能出错。不要发送密码、API Key 或其他高敏感信息。</p>
+      </footer>
+    </main>
+
+    <dialog class="settings-dialog" id="settingsDialog">
+      <form class="settings-card" id="settingsForm">
+        <header class="settings-header">
+          <div>
+            <span class="eyebrow">CONNECTION</span>
+            <h2>连接第三方接口</h2>
+            <p>填写你已经在使用、并且允许浏览器调用的 Codex 兼容服务。</p>
+          </div>
+          <button class="icon-button" id="settingsCloseButton" type="button" aria-label="关闭设置">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>
+          </button>
+        </header>
+
+        <div class="settings-grid">
+          <label class="field field-wide">
+            <span>接口地址</span>
+            <input id="endpointInput" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://your-service.example/v1" />
+            <small>可填写 Base URL，也可直接填写完整 Chat Completions 或 Responses 地址。</small>
+          </label>
+
+          <label class="field">
+            <span>接口类型</span>
+            <select id="protocolInput">
+              <option value="chat">Chat Completions</option>
+              <option value="responses">Responses API</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>模型名称</span>
+            <input id="modelInput" type="text" autocomplete="off" spellcheck="false" placeholder="例如 gpt-5-codex" />
+          </label>
+
+          <label class="field field-wide">
+            <span>API Key</span>
+            <input id="apiKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="只保存在你的 iPad 上" />
+          </label>
+
+          <label class="field field-wide">
+            <span>系统提示词</span>
+            <textarea id="systemPromptInput" rows="4" spellcheck="false"></textarea>
+          </label>
+
+          <label class="field">
+            <span>最大输出 Token</span>
+            <input id="maxTokensInput" type="number" min="128" max="32768" step="128" inputmode="numeric" />
+          </label>
+
+          <label class="field">
+            <span>Temperature</span>
+            <input id="temperatureInput" type="number" min="0" max="2" step="0.1" inputmode="decimal" />
+          </label>
+        </div>
+
+        <label class="remember-row">
+          <input id="rememberKeyInput" type="checkbox" />
+          <span>
+            <strong>在这台 iPad 上记住 API Key</strong>
+            <small>不勾选时，关闭浏览器后需要重新输入。共用设备请勿勾选。</small>
+          </span>
+        </label>
+
+        <label class="remember-row">
+          <input id="streamInput" type="checkbox" />
+          <span>
+            <strong>启用流式输出</strong>
+            <small>文字会边生成边显示；不兼容的服务会自动改用普通响应。</small>
+          </span>
+        </label>
+
+        <div class="connection-note">
+          浏览器会直接请求你填写的第三方 HTTPS 地址。若对方禁止跨域访问，需要在对方后台允许本站域名，或部署自己的代理。
+        </div>
+
+        <div class="settings-result" id="settingsResult" aria-live="polite"></div>
+
+        <footer class="settings-actions">
+          <button class="text-button danger" id="clearAllButton" type="button">清除本机数据</button>
+          <div>
+            <button class="text-button" id="testConnectionButton" type="button">测试连接</button>
+            <button class="primary-button" type="submit">保存并开始</button>
+          </div>
+        </footer>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>
