@@ -940,6 +940,18 @@ svg {
   overflow: hidden;
 }
 
+.workspace.is-preview-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace.is-preview-collapsed .preview-pane {
+  display: none !important;
+}
+
+.workspace.is-preview-collapsed .editor-pane {
+  border-right: 0;
+}
+
 .editor-pane,
 .preview-pane {
   min-width: 0;
@@ -1085,6 +1097,33 @@ svg {
   min-width: 0;
   align-items: center;
   gap: 13px;
+}
+
+.preview-restore-button {
+  display: flex;
+  min-height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 0 9px;
+  border: 1px solid #303947;
+  border-radius: 7px;
+  background: #171d27;
+  color: #aeb9c8;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.preview-restore-button:hover {
+  border-color: #52627a;
+  color: white;
+}
+
+.preview-restore-button svg {
+  width: 13px;
+  height: 13px;
 }
 
 .active-file-actions {
@@ -1534,6 +1573,11 @@ svg {
 .icon-button svg {
   width: 15px;
   height: 15px;
+}
+
+.collapse-preview-button {
+  border-left-color: var(--line);
+  border-radius: 0 8px 8px 0;
 }
 
 .preview-stage {
@@ -2692,6 +2736,16 @@ svg {
 
   .language-picker select {
     max-width: 155px;
+  }
+
+  .preview-restore-button {
+    width: 29px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .preview-restore-button span {
+    display: none;
   }
 
   .CodeMirror {

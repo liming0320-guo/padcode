@@ -14,7 +14,7 @@
     <link rel="apple-touch-icon" href="assets/icon.svg" />
     <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css" />
     <link rel="stylesheet" href="vendor/monaco/vs/editor/editor.main.css" />
-    <link rel="stylesheet" href="styles.css?v=20261103-2" />
+    <link rel="stylesheet" href="styles.css?v=20261103-3" />
   </head>
   <body>
     <nav class="vs-activitybar" aria-label="工作台">
@@ -276,6 +276,13 @@
                 <button id="deleteFileButton" class="is-danger" type="button" title="删除文件">删除</button>
               </div>
             </div>
+            <button class="preview-restore-button" id="showPreviewButton" type="button" hidden>
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+                <circle cx="12" cy="12" r="2.5" />
+              </svg>
+              <span>显示预览</span>
+            </button>
             <label class="live-toggle">
               <input id="autoRunToggle" type="checkbox" checked />
               <span class="toggle-track" aria-hidden="true"><span></span></span>
@@ -328,6 +335,11 @@
               <button class="icon-button" id="openButton" type="button" aria-label="在新窗口打开" title="在新窗口打开">
                 <svg aria-hidden="true" viewBox="0 0 24 24">
                   <path d="M14 4h6v6m0-6-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
+                </svg>
+              </button>
+              <button class="icon-button collapse-preview-button" id="collapsePreviewButton" type="button" aria-label="收起预览" title="收起预览">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="m14 6-6 6 6 6M20 4v16" />
                 </svg>
               </button>
             </div>
@@ -600,6 +612,6 @@
     <script>
       require.config({ paths: { vs: "vendor/monaco/vs" } });
     </script>
-    <script src="app.js?v=20261103-2"></script>
+    <script src="app.js?v=20261103-3"></script>
   </body>
 </html>

@@ -3,6 +3,7 @@
 
   const PROJECT_STORAGE_KEY = "padcode.project.v1";
   const AUTORUN_STORAGE_KEY = "padcode.autorun.v1";
+  const PREVIEW_COLLAPSE_STORAGE_KEY = "padcode.previewCollapsed.v1";
   const AI_CONFIG_STORAGE_KEY = "padcode.ai.config.v1";
   const AI_KEY_STORAGE_KEY = "padcode.ai.key.v1";
   const CHECKPOINT_STORAGE_KEY = "padcode.checkpoint.v1";
@@ -127,6 +128,8 @@
     fileInput: document.querySelector("#fileInput"),
     reloadButton: document.querySelector("#reloadButton"),
     openButton: document.querySelector("#openButton"),
+    collapsePreviewButton: document.querySelector("#collapsePreviewButton"),
+    showPreviewButton: document.querySelector("#showPreviewButton"),
     stdinButton: document.querySelector("#stdinButton"),
     stdinDialog: document.querySelector("#stdinDialog"),
     stdinInput: document.querySelector("#stdinInput"),
@@ -197,6 +200,7 @@
     activeCustomFileId: savedProject.activeCustomFileId,
     cursors: {},
     autoRun: readAutoRunPreference(),
+    previewCollapsed: readPreviewCollapsedPreference(),
   };
 
   let editor = null;
@@ -204,6 +208,10 @@
   let previewTimer = 0;
   let toastTimer = 0;
   let pistonBusy = false;
+  let embeddedRunnerReady = false;
+  let embeddedRunnerCompleted = false;
+  let embeddedRunnerTimer = 0;
+  let embeddedRunnerRetryTimer = 0;
   const consoleLogs = [];
   let aiConfig = loadAIConfig();
   let aiHistory = [];
@@ -224,6 +232,7 @@
       state.activeCustomFileId = null;
     }
     elements.autoRunToggle.checked = state.autoRun;
+    setPreviewCollapsed(state.previewCollapsed, { persist: false });
     updateShortcutLabels();
     updateAIStatus();
     bindControls();
@@ -320,6 +329,9 @@
     });
 
     elements.runButton.addEventListener("click", function () {
+      if (state.previewCollapsed) {
+        setPreviewCollapsed(false);
+      }
       runCurrent({ showPreview: true });
       if (window.matchMedia("(max-width: 900px)").matches) {
         setView("preview");
@@ -330,6 +342,13 @@
       runCurrent();
     });
 
+    elements.collapsePreviewButton.addEventListener("click", function () {
+      setPreviewCollapsed(true);
+    });
+    elements.showPreviewButton.addEventListener("click", function () {
+      setPreviewCollapsed(false);
+      setView("preview");
+    });
     elements.openButton.addEventListener("click", openPreviewInNewWindow);
     elements.exportButton.addEventListener("click", exportProject);
     elements.importButton.addEventListener("click", function () {
@@ -448,6 +467,8 @@
     });
 
     window.addEventListener("message", receivePreviewMessage);
+    window.addEventListener("message", receiveEmbeddedRunnerMessage);
+    elements.previewFrame.addEventListener("load", handleEmbeddedRunnerLoad);
     document.addEventListener("keydown", handleGlobalKeydown, true);
   }
 
@@ -1023,6 +1044,7 @@
     if (mode === "htmlmixed") {
       runPreview({ clearConsole: true });
     } else {
+      preparePreviewFrame();
       elements.previewFrame.srcdoc = buildTerminalDocument(
         file.name,
         "这是一个独立文件，内容会自动保存在 iPad 浏览器中。\n\n" +
@@ -1534,6 +1556,7 @@
   function runPreview(options) {
     const settings = Object.assign({ clearConsole: true }, options);
     window.clearTimeout(previewTimer);
+    preparePreviewFrame();
 
     if (settings.clearConsole) {
       clearConsole();
@@ -1553,7 +1576,23 @@
     liveDot.classList.add("is-running");
   }
 
+  function preparePreviewFrame() {
+    window.clearTimeout(embeddedRunnerTimer);
+    window.clearTimeout(embeddedRunnerRetryTimer);
+    embeddedRunnerReady = false;
+    embeddedRunnerCompleted = false;
+    delete elements.previewFrame.dataset.oneCompilerUrl;
+    elements.previewFrame.removeAttribute("src");
+    elements.previewFrame.setAttribute(
+      "sandbox",
+      "allow-scripts allow-forms allow-modals allow-popups"
+    );
+  }
+
   function runCurrent(options) {
+    if (state.previewCollapsed) {
+      setPreviewCollapsed(false);
+    }
     if (isWebLanguage() || getActiveMode() === "htmlmixed") {
       runPreview({ clearConsole: true });
       return;
@@ -1570,6 +1609,7 @@
     const source = customFile
       ? customFile.content
       : state.codeProjects[language].source;
+    const stdin = customFile ? "" : state.codeProjects[language].stdin || "";
     const slug = customFile
       ? config.externalSlug
       : { python: "python", java: "java", c: "c", cpp: "cpp" }[language];
@@ -1577,49 +1617,123 @@
       showToast("这个文件类型没有在线运行器，可以使用“存到文件”保存。");
       return;
     }
-    const copied = copyText(source);
-    window.open("https://onecompiler.com/" + slug, "_blank", "noopener");
 
-    elements.previewFrame.srcdoc = buildTerminalDocument(
-      config.label + " · 在线运行器",
-      copied
-        ? "代码已复制到剪贴板。\n\n已打开 OneCompiler 免费运行器，请在编辑区粘贴代码后点击 Run。\n\n代码也始终保存在 PadCode 中，可随时点击“存到文件”保存到 iPad。"
-        : "已打开 OneCompiler 免费运行器。\n\n浏览器未允许复制时，请返回 PadCode 选中代码并复制，再粘贴到运行器。",
-      "idle"
-    );
-    elements.previewTimestamp.textContent = copied ? "代码已复制" : "已打开运行器";
+    const query = new URLSearchParams({
+      listenToEvents: "true",
+      codeChangeEvent: "true",
+      hideLanguageSelection: "true",
+      hideNew: "true",
+      hideNewFileOption: "true",
+      hideTitle: "true",
+      hideEditorOptions: "true",
+      theme: "dark",
+      fontSize: "13",
+    });
+    const url = "https://onecompiler.com/embed/" + slug + "?" + query.toString();
+    const payload = {
+      eventType: "populateCode",
+      language: slug,
+      files: [{ name: config.fileName, content: source }],
+      stdin: stdin,
+    };
+    const sameRunner =
+      embeddedRunnerReady && elements.previewFrame.dataset.oneCompilerUrl === url;
+
+    setView("preview");
     clearConsole();
+    embeddedRunnerCompleted = false;
+    setConsoleExpanded(true);
+    elements.previewTimestamp.textContent = "正在准备站内运行…";
     appendConsoleEntry(
       "info",
-      copied
-        ? config.label + " 代码已复制，请在 OneCompiler 中粘贴并运行。"
-        : "请手动复制 " + config.fileName + " 后在 OneCompiler 中运行。"
+      config.label + " · " + config.fileName + " · 正在发送到站内运行器"
     );
+
+    if (sameRunner) {
+      startEmbeddedRunner(payload, 120);
+      return;
+    }
+
+    embeddedRunnerReady = false;
+    elements.previewFrame.dataset.oneCompilerUrl = url;
+    elements.previewFrame.dataset.pendingRunnerPayload = JSON.stringify(payload);
+    elements.previewFrame.setAttribute(
+      "sandbox",
+      "allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+    );
+    elements.previewFrame.removeAttribute("srcdoc");
+    elements.previewFrame.src = url;
   }
 
-  function copyText(text) {
+  function handleEmbeddedRunnerLoad() {
+    const expectedUrl = elements.previewFrame.dataset.oneCompilerUrl;
+    if (!expectedUrl) {
+      return;
+    }
+    embeddedRunnerReady = true;
+    let payload = null;
     try {
-      const field = document.createElement("textarea");
-      field.value = text;
-      field.setAttribute("readonly", "");
-      field.style.position = "fixed";
-      field.style.opacity = "0";
-      document.body.append(field);
-      field.select();
-      const copied = document.execCommand("copy");
-      field.remove();
-      if (copied) {
-        return true;
-      }
+      payload = JSON.parse(elements.previewFrame.dataset.pendingRunnerPayload || "null");
     } catch (_error) {
-      // Fall back to the modern clipboard API below.
+      payload = null;
     }
+    if (!payload) {
+      return;
+    }
+    startEmbeddedRunner(payload, 1200);
+  }
 
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch(function () {});
-      return true;
+  function startEmbeddedRunner(payload, delay) {
+    window.clearTimeout(embeddedRunnerTimer);
+    window.clearTimeout(embeddedRunnerRetryTimer);
+    embeddedRunnerTimer = window.setTimeout(function () {
+      sendToEmbeddedRunner(payload);
+      embeddedRunnerTimer = window.setTimeout(function () {
+        sendToEmbeddedRunner({ eventType: "triggerRun" });
+      }, 500);
+      embeddedRunnerRetryTimer = window.setTimeout(function () {
+        if (embeddedRunnerCompleted || !embeddedRunnerReady) {
+          return;
+        }
+        sendToEmbeddedRunner(payload);
+        embeddedRunnerTimer = window.setTimeout(function () {
+          sendToEmbeddedRunner({ eventType: "triggerRun" });
+        }, 600);
+      }, 3500);
+    }, delay);
+  }
+
+  function sendToEmbeddedRunner(payload) {
+    if (!elements.previewFrame.contentWindow) {
+      return;
     }
-    return false;
+    elements.previewFrame.contentWindow.postMessage(payload, "https://onecompiler.com");
+  }
+
+  function receiveEmbeddedRunnerMessage(event) {
+    if (event.origin !== "https://onecompiler.com") {
+      return;
+    }
+    if (event.source !== elements.previewFrame.contentWindow) {
+      return;
+    }
+    const data = event.data;
+    if (!data || data.action !== "runComplete") {
+      return;
+    }
+    embeddedRunnerCompleted = true;
+    window.clearTimeout(embeddedRunnerRetryTimer);
+    const result = data.result || {};
+    const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+    elements.previewTimestamp.textContent =
+      "运行完成" +
+      (typeof result.executionTime === "number"
+        ? " · " + Math.round(result.executionTime) + " ms"
+        : "");
+    appendConsoleEntry(
+      result.stderr ? "error" : "info",
+      output || "程序运行完成，没有额外输出。"
+    );
   }
 
   async function executeProgram() {
@@ -1762,6 +1876,7 @@
     if (isWebLanguage()) {
       return;
     }
+    preparePreviewFrame();
     const config = LANGUAGE_CONFIG[state.activeLanguage];
     elements.previewFrame.srcdoc = buildTerminalDocument(
       config.label + " 工作台",
@@ -2057,12 +2172,43 @@
 
   function setView(view) {
     const safeView = view === "preview" ? "preview" : "code";
+    if (safeView === "preview" && state.previewCollapsed) {
+      setPreviewCollapsed(false, { persist: true, keepView: true });
+    }
     elements.workspace.dataset.view = safeView;
     document.querySelectorAll(".view-switch button").forEach(function (button) {
       const active = button.dataset.view === safeView;
       button.classList.toggle("is-active", active);
       button.setAttribute("aria-pressed", String(active));
     });
+  }
+
+  function setPreviewCollapsed(collapsed, options) {
+    const settings = Object.assign({ persist: true, keepView: false }, options);
+    state.previewCollapsed = Boolean(collapsed);
+    elements.workspace.classList.toggle("is-preview-collapsed", state.previewCollapsed);
+    elements.showPreviewButton.hidden = !state.previewCollapsed;
+    elements.collapsePreviewButton.setAttribute(
+      "aria-pressed",
+      String(state.previewCollapsed)
+    );
+    if (
+      state.previewCollapsed &&
+      !settings.keepView &&
+      window.matchMedia("(max-width: 900px)").matches
+    ) {
+      setView("code");
+    }
+    if (settings.persist) {
+      try {
+        localStorage.setItem(
+          PREVIEW_COLLAPSE_STORAGE_KEY,
+          state.previewCollapsed ? "1" : "0"
+        );
+      } catch (_error) {
+        // The visual state still applies for this session.
+      }
+    }
   }
 
   function toggleWorkbenchPanel(panel) {
@@ -3743,6 +3889,14 @@
       return value === null ? true : value === "1";
     } catch (_error) {
       return true;
+    }
+  }
+
+  function readPreviewCollapsedPreference() {
+    try {
+      return localStorage.getItem(PREVIEW_COLLAPSE_STORAGE_KEY) === "1";
+    } catch (_error) {
+      return false;
     }
   }
 
