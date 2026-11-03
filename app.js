@@ -131,6 +131,10 @@
     collapsePreviewButton: document.querySelector("#collapsePreviewButton"),
     showPreviewButton: document.querySelector("#showPreviewButton"),
     stdinButton: document.querySelector("#stdinButton"),
+    programInputPanel: document.querySelector("#programInputPanel"),
+    programInputToggle: document.querySelector("#programInputToggle"),
+    programInputState: document.querySelector("#programInputState"),
+    programStdinInput: document.querySelector("#programStdinInput"),
     stdinDialog: document.querySelector("#stdinDialog"),
     stdinInput: document.querySelector("#stdinInput"),
     previewFrame: document.querySelector("#previewFrame"),
@@ -213,6 +217,7 @@
   let embeddedRunnerReady = false;
   let embeddedRunnerCompleted = false;
   let embeddedRunnerRunning = false;
+  let embeddedRunTriggered = false;
   let embeddedRunnerTimer = 0;
   let embeddedRunnerRetryTimer = 0;
   let embeddedRunnerTimeoutTimer = 0;
@@ -362,7 +367,13 @@
     elements.templateButton.addEventListener("click", handleTemplateButton);
     elements.clearConsoleButton.addEventListener("click", clearConsole);
     elements.consoleToggle.addEventListener("click", toggleConsole);
-    elements.stdinButton.addEventListener("click", openStdinDialog);
+    elements.stdinButton.addEventListener("click", function () {
+      toggleProgramInput(true);
+    });
+    elements.programInputToggle.addEventListener("click", function () {
+      toggleProgramInput();
+    });
+    elements.programStdinInput.addEventListener("input", saveStdinValue);
     elements.stdinInput.addEventListener("input", saveStdinValue);
     elements.assistantButton.addEventListener("click", openAssistant);
     elements.assistantCloseButton.addEventListener("click", closeAssistant);
@@ -931,6 +942,28 @@
     state.codeProjects[state.activeLanguage].source = value;
   }
 
+  function getActiveStdin() {
+    if (isWebLanguage()) {
+      return "";
+    }
+    if (state.activeDocumentKind === "custom") {
+      const file = getCustomFile(state.activeCustomFileId);
+      return file && typeof file.stdin === "string" ? file.stdin : "";
+    }
+    return state.codeProjects[state.activeLanguage].stdin || "";
+  }
+
+  function setActiveStdin(value) {
+    if (state.activeDocumentKind === "custom") {
+      const file = getCustomFile(state.activeCustomFileId);
+      if (file) {
+        file.stdin = value;
+      }
+      return;
+    }
+    state.codeProjects[state.activeLanguage].stdin = value;
+  }
+
   function activateLanguage(language, options) {
     if (!LANGUAGE_CONFIG[language]) {
       return;
@@ -973,13 +1006,18 @@
         elements.fallbackEditor.value = nextSource;
       }
       elements.activeFilename.textContent = config.fileName;
-      elements.stdinInput.value = state.codeProjects[language].stdin || "";
+      elements.programStdinInput.value = state.codeProjects[language].stdin || "";
+      elements.programInputPanel.hidden = false;
+      updateProgramInputState();
       updateCursorPosition();
       updateAIContext();
       renderCodeIdle();
     }
 
     elements.activeFileActions.hidden = true;
+    if (webLanguage) {
+      elements.programInputPanel.hidden = true;
+    }
     renderFileTabs();
     renderCustomFileTree();
     updateTreeSelection();
@@ -1042,6 +1080,9 @@
 
     elements.activeFilename.textContent = file.name;
     elements.activeFileActions.hidden = false;
+    elements.programInputPanel.hidden = false;
+    elements.programStdinInput.value = file.stdin || "";
+    updateProgramInputState();
     updateCursorPosition();
     updateAIContext();
     renderFileTabs();
@@ -1274,6 +1315,7 @@
       id: createFileId(),
       name: name,
       content: starterContentForFile(name),
+      stdin: "",
     };
     state.customFiles.push(file);
     elements.fileDialog.close();
@@ -1457,6 +1499,7 @@
 
   function handleEditorChange() {
     setActiveSource(editor.getValue());
+    updateProgramInputState();
     scheduleSave();
 
     if ((isWebLanguage() || getActiveMode() === "htmlmixed") && state.autoRun) {
@@ -1468,6 +1511,7 @@
 
   function handleFallbackInput() {
     setActiveSource(elements.fallbackEditor.value);
+    updateProgramInputState();
     scheduleSave();
     updateFallbackCursor();
     if ((isWebLanguage() || getActiveMode() === "htmlmixed") && state.autoRun) {
@@ -1615,12 +1659,28 @@
     const source = customFile
       ? customFile.content
       : state.codeProjects[language].source;
-    const stdin = customFile ? "" : state.codeProjects[language].stdin || "";
+    const stdin = getActiveStdin();
     const slug = customFile
       ? config.externalSlug
       : { python: "python", java: "java", c: "c", cpp: "cpp" }[language];
     if (!slug) {
       showToast("这个文件类型没有在线运行器，可以使用“存到文件”保存。");
+      return;
+    }
+
+    if (codeNeedsStdin(source, language) && !stdin.trim()) {
+      setView("preview");
+      elements.previewPanelTitle.textContent = "运行输入";
+      preparePreviewFrame();
+      elements.previewFrame.srcdoc = buildTerminalDocument(
+        "运行前需要输入",
+        "检测到这段程序会读取用户输入。\n\n请在预览下方的“程序输入（stdin）”中填写内容，然后再次点击运行。",
+        "idle"
+      );
+      elements.previewTimestamp.textContent = "请先填写程序输入";
+      toggleProgramInput(true);
+      updateProgramInputState();
+      showToast("这个程序需要输入，请先填写 stdin。");
       return;
     }
 
@@ -1632,16 +1692,19 @@
       hideNewFileOption: "true",
       hideTitle: "true",
       hideEditorOptions: "true",
+      hideStdin: "true",
       theme: "dark",
       fontSize: "13",
     });
     const url = "https://onecompiler.com/embed/" + slug + "?" + query.toString();
+    const runnerSource = sourceWithStdin(source, language, stdin);
     const payload = {
       eventType: "populateCode",
       language: slug,
-      files: [{ name: config.fileName, content: source }],
-      stdin: stdin,
+      files: [{ name: config.fileName, content: runnerSource }],
+      stdin: stdin && !stdin.endsWith("\n") ? stdin + "\n" : stdin,
     };
+    elements.runnerFrame.dataset.pendingRunnerPayload = JSON.stringify(payload);
     const sameRunner =
       embeddedRunnerReady && elements.runnerFrame.dataset.oneCompilerUrl === url;
 
@@ -1650,6 +1713,7 @@
     clearConsole();
     embeddedRunnerCompleted = false;
     embeddedRunnerRunning = true;
+    embeddedRunTriggered = false;
     setRunButtonBusy(true);
     setConsoleExpanded(false);
     preparePreviewFrame();
@@ -1672,7 +1736,6 @@
 
     embeddedRunnerReady = false;
     elements.runnerFrame.dataset.oneCompilerUrl = url;
-    elements.runnerFrame.dataset.pendingRunnerPayload = JSON.stringify(payload);
     elements.runnerFrame.src = url;
     armRunnerTimeout();
   }
@@ -1700,18 +1763,18 @@
     window.clearTimeout(embeddedRunnerRetryTimer);
     embeddedRunnerTimer = window.setTimeout(function () {
       sendToEmbeddedRunner(payload);
-      embeddedRunnerTimer = window.setTimeout(function () {
-        sendToEmbeddedRunner({ eventType: "triggerRun" });
-      }, 500);
       embeddedRunnerRetryTimer = window.setTimeout(function () {
-        if (embeddedRunnerCompleted || !embeddedRunnerReady) {
+        if (embeddedRunnerCompleted || !embeddedRunnerReady || embeddedRunTriggered) {
           return;
         }
         sendToEmbeddedRunner(payload);
         embeddedRunnerTimer = window.setTimeout(function () {
-          sendToEmbeddedRunner({ eventType: "triggerRun" });
-        }, 600);
-      }, 3500);
+          if (!embeddedRunTriggered && !embeddedRunnerCompleted) {
+            embeddedRunTriggered = true;
+            sendToEmbeddedRunner({ eventType: "triggerRun" });
+          }
+        }, 900);
+      }, 2200);
     }, delay);
   }
 
@@ -1730,7 +1793,43 @@
       return;
     }
     const data = event.data;
-    if (!data || data.action !== "runComplete") {
+    if (!data || !data.action) {
+      return;
+    }
+    if (data.action === "change") {
+      if (embeddedRunnerCompleted || embeddedRunTriggered || !embeddedRunnerRunning) {
+        return;
+      }
+      let expected = null;
+      try {
+        expected = JSON.parse(
+          elements.runnerFrame.dataset.pendingRunnerPayload || "null"
+        );
+      } catch (_error) {
+        expected = null;
+      }
+      const expectedFile = expected && expected.files && expected.files[0];
+      const actualFile = data.files && data.files[0];
+      const contentMatches =
+        expectedFile &&
+        actualFile &&
+        expectedFile.name === actualFile.name &&
+        expectedFile.content === actualFile.content;
+      const stdinMatches =
+        expected && String(data.stdin || "") === String(expected.stdin || "");
+      if (contentMatches && stdinMatches) {
+        embeddedRunTriggered = true;
+        window.clearTimeout(embeddedRunnerRetryTimer);
+        elements.previewTimestamp.textContent = "正在执行程序…";
+        window.setTimeout(function () {
+          if (!embeddedRunnerCompleted) {
+            sendToEmbeddedRunner({ eventType: "triggerRun" });
+          }
+        }, 120);
+      }
+      return;
+    }
+    if (data.action !== "runComplete") {
       return;
     }
     embeddedRunnerCompleted = true;
@@ -3559,21 +3658,135 @@
     if (isWebLanguage()) {
       return;
     }
-    elements.stdinInput.value = state.codeProjects[state.activeLanguage].stdin || "";
-    if (typeof elements.stdinDialog.showModal === "function") {
-      elements.stdinDialog.showModal();
-    } else {
-      elements.stdinDialog.setAttribute("open", "");
-    }
-    elements.stdinInput.focus();
+    toggleProgramInput(true);
   }
 
   function saveStdinValue() {
     if (isWebLanguage()) {
       return;
     }
-    state.codeProjects[state.activeLanguage].stdin = elements.stdinInput.value;
+    setActiveStdin(elements.programStdinInput.value);
+    updateProgramInputState();
     scheduleSave();
+  }
+
+  function toggleProgramInput(forceOpen) {
+    if (isWebLanguage()) {
+      return;
+    }
+    const shouldOpen =
+      typeof forceOpen === "boolean"
+        ? forceOpen
+        : !elements.programInputPanel.classList.contains("is-open");
+    elements.programInputPanel.classList.toggle("is-open", shouldOpen);
+    elements.programInputToggle.setAttribute("aria-expanded", String(shouldOpen));
+    if (shouldOpen) {
+      elements.programStdinInput.focus();
+    }
+  }
+
+  function updateProgramInputState() {
+    if (isWebLanguage()) {
+      return;
+    }
+    const source = getActiveSource();
+    const language = state.activeLanguage;
+    const needsInput = codeNeedsStdin(source, language);
+    const stdin = getActiveStdin();
+    elements.programInputState.classList.toggle(
+      "is-required",
+      needsInput && !stdin.trim()
+    );
+    elements.programInputState.textContent = needsInput
+      ? stdin.trim()
+        ? "已填写"
+        : "需要输入"
+      : stdin.trim()
+        ? "已填写"
+        : "可选";
+  }
+
+  function codeNeedsStdin(source, language) {
+    let code = String(source || "");
+    if (language === "python") {
+      code = code.replace(/#.*$/gm, "");
+      return /\binput\s*\(/.test(code);
+    }
+    code = code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    if (language === "java") {
+      return /\bScanner\b|System\.in|readLine\s*\(/.test(code);
+    }
+    if (language === "c" || language === "cpp") {
+      return /\bscanf\s*\(|\bgetchar\s*\(|\bfgets\s*\(|\bcin\s*>>|\bstd::cin\b/.test(
+        code
+      );
+    }
+    return false;
+  }
+
+  function sourceWithStdin(source, language, stdin) {
+    if (!stdin || !codeNeedsStdin(source, language)) {
+      return source;
+    }
+    const inputText = stdin.endsWith("\n") ? stdin : stdin + "\n";
+    const literal = JSON.stringify(inputText);
+
+    if (language === "python") {
+      return (
+        "import io as __padcode_io\n" +
+        "import sys as __padcode_sys\n" +
+        "__padcode_sys.stdin = __padcode_io.StringIO(" +
+        literal +
+        ")\n" +
+        source
+      );
+    }
+
+    if (language === "java") {
+      const setInput =
+        'System.setIn(new java.io.ByteArrayInputStream(' +
+        literal +
+        ".getBytes(java.nio.charset.StandardCharsets.UTF_8)));";
+      const mainPattern =
+        /(public\s+static\s+void\s+main\s*\([^)]*\)\s*\{|static\s+void\s+main\s*\([^)]*\)\s*\{)/;
+      return mainPattern.test(source)
+        ? source.replace(mainPattern, function (match) {
+            return match + "\n" + setInput;
+          })
+        : source;
+    }
+
+    if (language === "c") {
+      return (
+        "#ifndef _GNU_SOURCE\n#define _GNU_SOURCE\n#endif\n" +
+        "#include <stdio.h>\n" +
+        "static char __padcode_stdin_data[] = " +
+        literal +
+        ";\n" +
+        "static void __attribute__((constructor)) __padcode_stdin_init(void) {\n" +
+        '  stdin = fmemopen(__padcode_stdin_data, sizeof(__padcode_stdin_data) - 1, "r");\n' +
+        "}\n" +
+        source
+      );
+    }
+
+    if (language === "cpp") {
+      return (
+        "#include <iostream>\n" +
+        "#include <sstream>\n" +
+        "#include <string>\n" +
+        "static std::istringstream __padcode_input(" +
+        literal +
+        ");\n" +
+        "struct __PadcodeStdinInit {\n" +
+        "  __PadcodeStdinInit() { std::cin.rdbuf(__padcode_input.rdbuf()); }\n" +
+        "};\n" +
+        "static __PadcodeStdinInit __padcode_stdin_init;\n" +
+        source
+      );
+    }
+
+    return source;
   }
 
   function openTemplateDialog() {
@@ -3911,6 +4124,7 @@
           id: file.id,
           name: normalizeNewFileName(file.name),
           content: file.content,
+          stdin: typeof file.stdin === "string" ? file.stdin : "",
         };
       });
   }

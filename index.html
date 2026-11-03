@@ -14,7 +14,7 @@
     <link rel="apple-touch-icon" href="assets/icon.svg" />
     <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css" />
     <link rel="stylesheet" href="vendor/monaco/vs/editor/editor.main.css" />
-    <link rel="stylesheet" href="styles.css?v=20261103-4" />
+    <link rel="stylesheet" href="styles.css?v=20261103-5" />
   </head>
   <body>
     <nav class="vs-activitybar" aria-label="工作台">
@@ -352,6 +352,26 @@
               sandbox="allow-scripts allow-forms allow-modals allow-popups"
             ></iframe>
           </div>
+          <section class="program-input-panel" id="programInputPanel" hidden>
+            <button class="program-input-header" id="programInputToggle" type="button" aria-expanded="false">
+              <span class="program-input-icon" aria-hidden="true">&gt;_</span>
+              <span>程序输入（stdin）</span>
+              <span class="program-input-state" id="programInputState">可选</span>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+            <div class="program-input-body">
+              <textarea
+                id="programStdinInput"
+                aria-label="程序标准输入"
+                autocomplete="off"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="在这里填写程序输入，例如：&#10;iPad&#10;42"
+              ></textarea>
+              <p>输入会按原样传入 <code>input()</code>、<code>scanf()</code>、<code>cin</code> 或 <code>Scanner</code>。</p>
+            </div>
+          </section>
           <iframe
             id="runnerFrame"
             class="runner-frame"
@@ -620,6 +640,6 @@
     <script>
       require.config({ paths: { vs: "vendor/monaco/vs" } });
     </script>
-    <script src="app.js?v=20261103-4"></script>
+    <script src="app.js?v=20261103-5"></script>
   </body>
 </html>

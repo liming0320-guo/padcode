@@ -1458,7 +1458,7 @@ svg {
 
 .preview-pane {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.2)),
     var(--canvas);
@@ -1573,6 +1573,112 @@ svg {
 .icon-button svg {
   width: 15px;
   height: 15px;
+}
+
+.program-input-panel {
+  margin: 8px 14px 0;
+  overflow: hidden;
+  border: 1px solid #2b3441;
+  border-radius: 10px;
+  background: #111720;
+  color: #b8c3d2;
+}
+
+.program-input-header {
+  display: flex;
+  width: 100%;
+  height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 0;
+  background: transparent;
+  color: #aeb9c8;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.program-input-header:hover {
+  background: #171f2b;
+}
+
+.program-input-icon {
+  color: #ffb47c;
+  font-family: var(--code-font);
+  font-size: 9px;
+}
+
+.program-input-state {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #232c39;
+  color: #8491a3;
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.program-input-state.is-required {
+  background: rgba(242, 106, 61, 0.16);
+  color: #ffad8d;
+}
+
+.program-input-header svg {
+  width: 12px;
+  height: 12px;
+  transition: transform 160ms ease;
+}
+
+.program-input-panel.is-open .program-input-header svg {
+  transform: rotate(180deg);
+}
+
+.program-input-body {
+  display: none;
+  padding: 0 10px 10px;
+}
+
+.program-input-panel.is-open .program-input-body {
+  display: block;
+}
+
+.program-input-body textarea {
+  display: block;
+  width: 100%;
+  min-height: 92px;
+  max-height: 180px;
+  padding: 10px;
+  resize: vertical;
+  border: 1px solid #303a48;
+  border-radius: 7px;
+  outline: none;
+  background: #0b1016;
+  color: #dce7df;
+  font-family: var(--code-font);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.program-input-body textarea:focus {
+  border-color: #607793;
+}
+
+.program-input-body p {
+  margin: 7px 2px 0;
+  color: #6d7a8c;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.program-input-body code {
+  color: #b7c8df;
+  font-family: var(--code-font);
+}
+
+.app-shell.is-code-language .stdin-button {
+  display: flex;
 }
 
 .collapse-preview-button {
@@ -2659,6 +2765,10 @@ svg {
 
   .console-panel {
     margin: 8px 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .program-input-panel {
+    margin: 8px 10px 0;
   }
 
   .assistant-panel {

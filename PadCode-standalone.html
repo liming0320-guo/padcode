@@ -1479,7 +1479,7 @@ svg {
 
 .preview-pane {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.2)),
     var(--canvas);
@@ -1594,6 +1594,112 @@ svg {
 .icon-button svg {
   width: 15px;
   height: 15px;
+}
+
+.program-input-panel {
+  margin: 8px 14px 0;
+  overflow: hidden;
+  border: 1px solid #2b3441;
+  border-radius: 10px;
+  background: #111720;
+  color: #b8c3d2;
+}
+
+.program-input-header {
+  display: flex;
+  width: 100%;
+  height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 0;
+  background: transparent;
+  color: #aeb9c8;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.program-input-header:hover {
+  background: #171f2b;
+}
+
+.program-input-icon {
+  color: #ffb47c;
+  font-family: var(--code-font);
+  font-size: 9px;
+}
+
+.program-input-state {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #232c39;
+  color: #8491a3;
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.program-input-state.is-required {
+  background: rgba(242, 106, 61, 0.16);
+  color: #ffad8d;
+}
+
+.program-input-header svg {
+  width: 12px;
+  height: 12px;
+  transition: transform 160ms ease;
+}
+
+.program-input-panel.is-open .program-input-header svg {
+  transform: rotate(180deg);
+}
+
+.program-input-body {
+  display: none;
+  padding: 0 10px 10px;
+}
+
+.program-input-panel.is-open .program-input-body {
+  display: block;
+}
+
+.program-input-body textarea {
+  display: block;
+  width: 100%;
+  min-height: 92px;
+  max-height: 180px;
+  padding: 10px;
+  resize: vertical;
+  border: 1px solid #303a48;
+  border-radius: 7px;
+  outline: none;
+  background: #0b1016;
+  color: #dce7df;
+  font-family: var(--code-font);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.program-input-body textarea:focus {
+  border-color: #607793;
+}
+
+.program-input-body p {
+  margin: 7px 2px 0;
+  color: #6d7a8c;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.program-input-body code {
+  color: #b7c8df;
+  font-family: var(--code-font);
+}
+
+.app-shell.is-code-language .stdin-button {
+  display: flex;
 }
 
 .collapse-preview-button {
@@ -2682,6 +2788,10 @@ svg {
     margin: 8px 10px max(10px, env(safe-area-inset-bottom));
   }
 
+  .program-input-panel {
+    margin: 8px 10px 0;
+  }
+
   .assistant-panel {
     top: max(8px, env(safe-area-inset-top));
     right: 8px;
@@ -3210,6 +3320,26 @@ svg {
               sandbox="allow-scripts allow-forms allow-modals allow-popups"
             ></iframe>
           </div>
+          <section class="program-input-panel" id="programInputPanel" hidden>
+            <button class="program-input-header" id="programInputToggle" type="button" aria-expanded="false">
+              <span class="program-input-icon" aria-hidden="true">&gt;_</span>
+              <span>程序输入（stdin）</span>
+              <span class="program-input-state" id="programInputState">可选</span>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+            <div class="program-input-body">
+              <textarea
+                id="programStdinInput"
+                aria-label="程序标准输入"
+                autocomplete="off"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="在这里填写程序输入，例如：&#10;iPad&#10;42"
+              ></textarea>
+              <p>输入会按原样传入 <code>input()</code>、<code>scanf()</code>、<code>cin</code> 或 <code>Scanner</code>。</p>
+            </div>
+          </section>
           <iframe
             id="runnerFrame"
             class="runner-frame"
@@ -5003,6 +5133,10 @@ var define, AMDLoader;
     collapsePreviewButton: document.querySelector("#collapsePreviewButton"),
     showPreviewButton: document.querySelector("#showPreviewButton"),
     stdinButton: document.querySelector("#stdinButton"),
+    programInputPanel: document.querySelector("#programInputPanel"),
+    programInputToggle: document.querySelector("#programInputToggle"),
+    programInputState: document.querySelector("#programInputState"),
+    programStdinInput: document.querySelector("#programStdinInput"),
     stdinDialog: document.querySelector("#stdinDialog"),
     stdinInput: document.querySelector("#stdinInput"),
     previewFrame: document.querySelector("#previewFrame"),
@@ -5085,6 +5219,7 @@ var define, AMDLoader;
   let embeddedRunnerReady = false;
   let embeddedRunnerCompleted = false;
   let embeddedRunnerRunning = false;
+  let embeddedRunTriggered = false;
   let embeddedRunnerTimer = 0;
   let embeddedRunnerRetryTimer = 0;
   let embeddedRunnerTimeoutTimer = 0;
@@ -5234,7 +5369,13 @@ var define, AMDLoader;
     elements.templateButton.addEventListener("click", handleTemplateButton);
     elements.clearConsoleButton.addEventListener("click", clearConsole);
     elements.consoleToggle.addEventListener("click", toggleConsole);
-    elements.stdinButton.addEventListener("click", openStdinDialog);
+    elements.stdinButton.addEventListener("click", function () {
+      toggleProgramInput(true);
+    });
+    elements.programInputToggle.addEventListener("click", function () {
+      toggleProgramInput();
+    });
+    elements.programStdinInput.addEventListener("input", saveStdinValue);
     elements.stdinInput.addEventListener("input", saveStdinValue);
     elements.assistantButton.addEventListener("click", openAssistant);
     elements.assistantCloseButton.addEventListener("click", closeAssistant);
@@ -5803,6 +5944,28 @@ var define, AMDLoader;
     state.codeProjects[state.activeLanguage].source = value;
   }
 
+  function getActiveStdin() {
+    if (isWebLanguage()) {
+      return "";
+    }
+    if (state.activeDocumentKind === "custom") {
+      const file = getCustomFile(state.activeCustomFileId);
+      return file && typeof file.stdin === "string" ? file.stdin : "";
+    }
+    return state.codeProjects[state.activeLanguage].stdin || "";
+  }
+
+  function setActiveStdin(value) {
+    if (state.activeDocumentKind === "custom") {
+      const file = getCustomFile(state.activeCustomFileId);
+      if (file) {
+        file.stdin = value;
+      }
+      return;
+    }
+    state.codeProjects[state.activeLanguage].stdin = value;
+  }
+
   function activateLanguage(language, options) {
     if (!LANGUAGE_CONFIG[language]) {
       return;
@@ -5845,13 +6008,18 @@ var define, AMDLoader;
         elements.fallbackEditor.value = nextSource;
       }
       elements.activeFilename.textContent = config.fileName;
-      elements.stdinInput.value = state.codeProjects[language].stdin || "";
+      elements.programStdinInput.value = state.codeProjects[language].stdin || "";
+      elements.programInputPanel.hidden = false;
+      updateProgramInputState();
       updateCursorPosition();
       updateAIContext();
       renderCodeIdle();
     }
 
     elements.activeFileActions.hidden = true;
+    if (webLanguage) {
+      elements.programInputPanel.hidden = true;
+    }
     renderFileTabs();
     renderCustomFileTree();
     updateTreeSelection();
@@ -5914,6 +6082,9 @@ var define, AMDLoader;
 
     elements.activeFilename.textContent = file.name;
     elements.activeFileActions.hidden = false;
+    elements.programInputPanel.hidden = false;
+    elements.programStdinInput.value = file.stdin || "";
+    updateProgramInputState();
     updateCursorPosition();
     updateAIContext();
     renderFileTabs();
@@ -6146,6 +6317,7 @@ var define, AMDLoader;
       id: createFileId(),
       name: name,
       content: starterContentForFile(name),
+      stdin: "",
     };
     state.customFiles.push(file);
     elements.fileDialog.close();
@@ -6329,6 +6501,7 @@ var define, AMDLoader;
 
   function handleEditorChange() {
     setActiveSource(editor.getValue());
+    updateProgramInputState();
     scheduleSave();
 
     if ((isWebLanguage() || getActiveMode() === "htmlmixed") && state.autoRun) {
@@ -6340,6 +6513,7 @@ var define, AMDLoader;
 
   function handleFallbackInput() {
     setActiveSource(elements.fallbackEditor.value);
+    updateProgramInputState();
     scheduleSave();
     updateFallbackCursor();
     if ((isWebLanguage() || getActiveMode() === "htmlmixed") && state.autoRun) {
@@ -6487,12 +6661,28 @@ var define, AMDLoader;
     const source = customFile
       ? customFile.content
       : state.codeProjects[language].source;
-    const stdin = customFile ? "" : state.codeProjects[language].stdin || "";
+    const stdin = getActiveStdin();
     const slug = customFile
       ? config.externalSlug
       : { python: "python", java: "java", c: "c", cpp: "cpp" }[language];
     if (!slug) {
       showToast("这个文件类型没有在线运行器，可以使用“存到文件”保存。");
+      return;
+    }
+
+    if (codeNeedsStdin(source, language) && !stdin.trim()) {
+      setView("preview");
+      elements.previewPanelTitle.textContent = "运行输入";
+      preparePreviewFrame();
+      elements.previewFrame.srcdoc = buildTerminalDocument(
+        "运行前需要输入",
+        "检测到这段程序会读取用户输入。\n\n请在预览下方的“程序输入（stdin）”中填写内容，然后再次点击运行。",
+        "idle"
+      );
+      elements.previewTimestamp.textContent = "请先填写程序输入";
+      toggleProgramInput(true);
+      updateProgramInputState();
+      showToast("这个程序需要输入，请先填写 stdin。");
       return;
     }
 
@@ -6504,16 +6694,19 @@ var define, AMDLoader;
       hideNewFileOption: "true",
       hideTitle: "true",
       hideEditorOptions: "true",
+      hideStdin: "true",
       theme: "dark",
       fontSize: "13",
     });
     const url = "https://onecompiler.com/embed/" + slug + "?" + query.toString();
+    const runnerSource = sourceWithStdin(source, language, stdin);
     const payload = {
       eventType: "populateCode",
       language: slug,
-      files: [{ name: config.fileName, content: source }],
-      stdin: stdin,
+      files: [{ name: config.fileName, content: runnerSource }],
+      stdin: stdin && !stdin.endsWith("\n") ? stdin + "\n" : stdin,
     };
+    elements.runnerFrame.dataset.pendingRunnerPayload = JSON.stringify(payload);
     const sameRunner =
       embeddedRunnerReady && elements.runnerFrame.dataset.oneCompilerUrl === url;
 
@@ -6522,6 +6715,7 @@ var define, AMDLoader;
     clearConsole();
     embeddedRunnerCompleted = false;
     embeddedRunnerRunning = true;
+    embeddedRunTriggered = false;
     setRunButtonBusy(true);
     setConsoleExpanded(false);
     preparePreviewFrame();
@@ -6544,7 +6738,6 @@ var define, AMDLoader;
 
     embeddedRunnerReady = false;
     elements.runnerFrame.dataset.oneCompilerUrl = url;
-    elements.runnerFrame.dataset.pendingRunnerPayload = JSON.stringify(payload);
     elements.runnerFrame.src = url;
     armRunnerTimeout();
   }
@@ -6572,18 +6765,18 @@ var define, AMDLoader;
     window.clearTimeout(embeddedRunnerRetryTimer);
     embeddedRunnerTimer = window.setTimeout(function () {
       sendToEmbeddedRunner(payload);
-      embeddedRunnerTimer = window.setTimeout(function () {
-        sendToEmbeddedRunner({ eventType: "triggerRun" });
-      }, 500);
       embeddedRunnerRetryTimer = window.setTimeout(function () {
-        if (embeddedRunnerCompleted || !embeddedRunnerReady) {
+        if (embeddedRunnerCompleted || !embeddedRunnerReady || embeddedRunTriggered) {
           return;
         }
         sendToEmbeddedRunner(payload);
         embeddedRunnerTimer = window.setTimeout(function () {
-          sendToEmbeddedRunner({ eventType: "triggerRun" });
-        }, 600);
-      }, 3500);
+          if (!embeddedRunTriggered && !embeddedRunnerCompleted) {
+            embeddedRunTriggered = true;
+            sendToEmbeddedRunner({ eventType: "triggerRun" });
+          }
+        }, 900);
+      }, 2200);
     }, delay);
   }
 
@@ -6602,7 +6795,43 @@ var define, AMDLoader;
       return;
     }
     const data = event.data;
-    if (!data || data.action !== "runComplete") {
+    if (!data || !data.action) {
+      return;
+    }
+    if (data.action === "change") {
+      if (embeddedRunnerCompleted || embeddedRunTriggered || !embeddedRunnerRunning) {
+        return;
+      }
+      let expected = null;
+      try {
+        expected = JSON.parse(
+          elements.runnerFrame.dataset.pendingRunnerPayload || "null"
+        );
+      } catch (_error) {
+        expected = null;
+      }
+      const expectedFile = expected && expected.files && expected.files[0];
+      const actualFile = data.files && data.files[0];
+      const contentMatches =
+        expectedFile &&
+        actualFile &&
+        expectedFile.name === actualFile.name &&
+        expectedFile.content === actualFile.content;
+      const stdinMatches =
+        expected && String(data.stdin || "") === String(expected.stdin || "");
+      if (contentMatches && stdinMatches) {
+        embeddedRunTriggered = true;
+        window.clearTimeout(embeddedRunnerRetryTimer);
+        elements.previewTimestamp.textContent = "正在执行程序…";
+        window.setTimeout(function () {
+          if (!embeddedRunnerCompleted) {
+            sendToEmbeddedRunner({ eventType: "triggerRun" });
+          }
+        }, 120);
+      }
+      return;
+    }
+    if (data.action !== "runComplete") {
       return;
     }
     embeddedRunnerCompleted = true;
@@ -8431,21 +8660,135 @@ var define, AMDLoader;
     if (isWebLanguage()) {
       return;
     }
-    elements.stdinInput.value = state.codeProjects[state.activeLanguage].stdin || "";
-    if (typeof elements.stdinDialog.showModal === "function") {
-      elements.stdinDialog.showModal();
-    } else {
-      elements.stdinDialog.setAttribute("open", "");
-    }
-    elements.stdinInput.focus();
+    toggleProgramInput(true);
   }
 
   function saveStdinValue() {
     if (isWebLanguage()) {
       return;
     }
-    state.codeProjects[state.activeLanguage].stdin = elements.stdinInput.value;
+    setActiveStdin(elements.programStdinInput.value);
+    updateProgramInputState();
     scheduleSave();
+  }
+
+  function toggleProgramInput(forceOpen) {
+    if (isWebLanguage()) {
+      return;
+    }
+    const shouldOpen =
+      typeof forceOpen === "boolean"
+        ? forceOpen
+        : !elements.programInputPanel.classList.contains("is-open");
+    elements.programInputPanel.classList.toggle("is-open", shouldOpen);
+    elements.programInputToggle.setAttribute("aria-expanded", String(shouldOpen));
+    if (shouldOpen) {
+      elements.programStdinInput.focus();
+    }
+  }
+
+  function updateProgramInputState() {
+    if (isWebLanguage()) {
+      return;
+    }
+    const source = getActiveSource();
+    const language = state.activeLanguage;
+    const needsInput = codeNeedsStdin(source, language);
+    const stdin = getActiveStdin();
+    elements.programInputState.classList.toggle(
+      "is-required",
+      needsInput && !stdin.trim()
+    );
+    elements.programInputState.textContent = needsInput
+      ? stdin.trim()
+        ? "已填写"
+        : "需要输入"
+      : stdin.trim()
+        ? "已填写"
+        : "可选";
+  }
+
+  function codeNeedsStdin(source, language) {
+    let code = String(source || "");
+    if (language === "python") {
+      code = code.replace(/#.*$/gm, "");
+      return /\binput\s*\(/.test(code);
+    }
+    code = code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    if (language === "java") {
+      return /\bScanner\b|System\.in|readLine\s*\(/.test(code);
+    }
+    if (language === "c" || language === "cpp") {
+      return /\bscanf\s*\(|\bgetchar\s*\(|\bfgets\s*\(|\bcin\s*>>|\bstd::cin\b/.test(
+        code
+      );
+    }
+    return false;
+  }
+
+  function sourceWithStdin(source, language, stdin) {
+    if (!stdin || !codeNeedsStdin(source, language)) {
+      return source;
+    }
+    const inputText = stdin.endsWith("\n") ? stdin : stdin + "\n";
+    const literal = JSON.stringify(inputText);
+
+    if (language === "python") {
+      return (
+        "import io as __padcode_io\n" +
+        "import sys as __padcode_sys\n" +
+        "__padcode_sys.stdin = __padcode_io.StringIO(" +
+        literal +
+        ")\n" +
+        source
+      );
+    }
+
+    if (language === "java") {
+      const setInput =
+        'System.setIn(new java.io.ByteArrayInputStream(' +
+        literal +
+        ".getBytes(java.nio.charset.StandardCharsets.UTF_8)));";
+      const mainPattern =
+        /(public\s+static\s+void\s+main\s*\([^)]*\)\s*\{|static\s+void\s+main\s*\([^)]*\)\s*\{)/;
+      return mainPattern.test(source)
+        ? source.replace(mainPattern, function (match) {
+            return match + "\n" + setInput;
+          })
+        : source;
+    }
+
+    if (language === "c") {
+      return (
+        "#ifndef _GNU_SOURCE\n#define _GNU_SOURCE\n#endif\n" +
+        "#include <stdio.h>\n" +
+        "static char __padcode_stdin_data[] = " +
+        literal +
+        ";\n" +
+        "static void __attribute__((constructor)) __padcode_stdin_init(void) {\n" +
+        '  stdin = fmemopen(__padcode_stdin_data, sizeof(__padcode_stdin_data) - 1, "r");\n' +
+        "}\n" +
+        source
+      );
+    }
+
+    if (language === "cpp") {
+      return (
+        "#include <iostream>\n" +
+        "#include <sstream>\n" +
+        "#include <string>\n" +
+        "static std::istringstream __padcode_input(" +
+        literal +
+        ");\n" +
+        "struct __PadcodeStdinInit {\n" +
+        "  __PadcodeStdinInit() { std::cin.rdbuf(__padcode_input.rdbuf()); }\n" +
+        "};\n" +
+        "static __PadcodeStdinInit __padcode_stdin_init;\n" +
+        source
+      );
+    }
+
+    return source;
   }
 
   function openTemplateDialog() {
@@ -8783,6 +9126,7 @@ var define, AMDLoader;
           id: file.id,
           name: normalizeNewFileName(file.name),
           content: file.content,
+          stdin: typeof file.stdin === "string" ? file.stdin : "",
         };
       });
   }
