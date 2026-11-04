@@ -36,12 +36,14 @@ if ($stylesheetPaths.Count -eq 0 -or $scriptPaths.Count -eq 0) {
 }
 
 $cssParts = foreach ($relativePath in $stylesheetPaths) {
-  [System.IO.File]::ReadAllText((Join-Path $root $relativePath))
+  $cleanPath = ($relativePath -split '\?', 2)[0]
+  [System.IO.File]::ReadAllText((Join-Path $root $cleanPath))
 }
 $css = ($cssParts -join "`n`n").Replace("</style", "<\/style")
 
 $javascriptParts = foreach ($relativePath in $scriptPaths) {
-  [System.IO.File]::ReadAllText((Join-Path $root $relativePath))
+  $cleanPath = ($relativePath -split '\?', 2)[0]
+  [System.IO.File]::ReadAllText((Join-Path $root $cleanPath))
 }
 $javascript = ($javascriptParts -join "`n`n").Replace("</script", "<\/script")
 

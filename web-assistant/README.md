@@ -2,6 +2,12 @@
 
 一个独立的浏览器聊天客户端，用于连接你已有的第三方 OpenAI/Codex 兼容服务。它不依赖桌面 Codex 应用，不使用 PadCode 的编辑器，也不包含任何 API Key。
 
+已发布地址：
+
+```text
+https://liming0320-guo.github.io/padcode/web-assistant/
+```
+
 ## 功能
 
 - 支持 Chat Completions 与 Responses API

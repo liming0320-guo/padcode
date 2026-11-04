@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "padcode-shell-v1";
+const CACHE_NAME = "padcode-shell-v9";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -13,10 +13,14 @@ const APP_SHELL = [
   "./vendor/codemirror/mode/xml/xml.min.js",
   "./vendor/codemirror/mode/javascript/javascript.min.js",
   "./vendor/codemirror/mode/css/css.min.js",
+  "./vendor/codemirror/mode/python/python.min.js",
+  "./vendor/codemirror/mode/clike/clike.min.js",
   "./vendor/codemirror/mode/htmlmixed/htmlmixed.min.js",
   "./vendor/codemirror/addon/edit/closebrackets.min.js",
   "./vendor/codemirror/addon/edit/matchbrackets.min.js",
   "./vendor/codemirror/addon/selection/active-line.min.js",
+  "./vendor/monaco/vs/loader.js",
+  "./vendor/monaco/vs/editor/editor.main.css",
 ];
 
 self.addEventListener("install", function (event) {
@@ -73,6 +77,25 @@ self.addEventListener("fetch", function (event) {
           return caches.match(event.request).then(function (cached) {
             return cached || caches.match("./index.html");
           });
+        })
+    );
+    return;
+  }
+
+  if (/\/(app\.js|styles\.css|manifest\.webmanifest|sw\.js)$/.test(requestUrl.pathname)) {
+    event.respondWith(
+      fetch(event.request)
+        .then(function (response) {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(function (cache) {
+              cache.put(event.request, copy);
+            });
+          }
+          return response;
+        })
+        .catch(function () {
+          return caches.match(event.request);
         })
     );
     return;

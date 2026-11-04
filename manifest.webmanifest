@@ -1,7 +1,7 @@
 {
   "name": "PadCode · 浏览器代码工作台",
   "short_name": "PadCode",
-  "description": "为 iPad 优化的免费 HTML、CSS、JavaScript 代码工作台。",
+  "description": "为 iPad 优化的多语言代码工作台，支持网页、Python、Java、C、C++ 和保存到本地文件。",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",

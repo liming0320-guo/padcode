@@ -1,21 +1,61 @@
 # PadCode
 
-PadCode 是一个为 iPad 和触控设备优化的免费网页代码工作台。它完全运行在浏览器中，不需要后端，也不会把项目代码上传到服务器。
+PadCode 是一个为 iPad 和触控设备优化的浏览器代码工作台。它使用 VS Code 同源的 Monaco 编辑器，不需要本地后端，并可选连接 DeepSeek、通义千问或其他兼容的国内 AI 接口。
 
 ## 功能
 
+- 使用 Monaco Editor：多光标、自动补全、参数提示、折叠、括号配对、minimap、查找替换
+- 接近 VS Code Dark+ 的语法配色，区分关键字、字符串、数字、类型、函数和 HTML 标签
+- VS Code 风格资源管理器、全局搜索、问题、检查点和扩展状态面板
+- `F1` 或 `Shift+Cmd+P` 命令面板，提供保存、运行、格式化、搜索等操作
 - HTML、CSS、JavaScript 多文件编辑
-- CodeMirror 语法高亮、行号、括号匹配和自动缩进
+- 新建、重命名和删除自定义文件，刷新后自动恢复
+- Python、Java、C、C++ 独立代码草稿与语法高亮
+- Python、Java、C、C++ 在站内嵌入 OneCompiler 运行，自动传入当前代码并运行
+- 运行器编辑器保持隐藏，PadCode 预览区只展示执行结果
+- 运行前可填写 stdin，支持 `input()`、`Scanner`、`scanf()` 和 `cin`
 - 实时网页预览与可折叠控制台
 - `localStorage` 自动保存，刷新页面不会丢失
-- 导入外部 `.html`、`.css`、`.js` 文件
+- 导入外部 `.html`、`.css`、`.js`、`.py`、`.java`、`.c`、`.cpp` 文件
 - 将所有代码导出为一个独立的 HTML 文件
+- 在 iPad 上通过原生分享面板保存到“文件”App
 - iPad 横屏双栏、竖屏代码/预览切换
+- 一键收起预览，获得完整宽度的专注编辑区
 - PWA 离线缓存和主屏幕安装支持
+- AI 助手读取网页文件、代码草稿和运行输出
+- 将 AI 生成的完整文件一键应用到项目
+
+## VS Code 功能边界
+
+当前版本覆盖了完整的代码编辑体验、工作台侧栏、命令面板、项目搜索、语言诊断和本地版本检查点，但仍然是浏览器应用，不等同于完整桌面版 VS Code：
+
+- 不能直接访问 iPad 上任意文件夹；导入和导出通过文件选择器完成。
+- 没有真实终端、扩展市场和远程 Git 仓库同步。
+- Python、Java、C、C++ 使用 OneCompiler 免费在线编译器，并嵌入 PadCode 预览区。点击“在线运行”时，当前代码会自动发送并立即执行，不需要跳转或重新粘贴。
+- 真正的 Web 智能提示和诊断需要 HTTPS 部署；用 `file://` 直接打开时会降级。
+
+## 配置 AI 助手
+
+1. 在 DeepSeek 开放平台、阿里云百炼等正规渠道申请 API Key，并设置用量上限。
+2. 在 PadCode 中打开“AI 助手”，点击顶部的“未配置”。
+3. 选择 DeepSeek 或通义千问，填写自己的 API Key，然后保存。
+4. 输入需求。AI 返回完整文件后，点击“应用文件”即可替换项目并刷新预览。
+
+PadCode 会从浏览器直接请求所选服务的 HTTPS 兼容接口。API Key 默认只保存在当前浏览会话；勾选“在这台 iPad 上记住 API Key”后会写入该站点的浏览器存储。不要在共用设备上勾选，也不要把自己的 Key 发给他人。
+
+AI 生成的内容可能有错误。应用代码前应查看回答，并至少检查一次预览和浏览器控制台。
 
 ## 启动
 
 桌面浏览器可以直接打开 `index.html`。PWA 安装和 Service Worker 需要部署到 HTTPS 地址。
+
+本机测试完整 Worker 和 Service Worker 功能时，可在 PowerShell 中运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\serve.ps1 -Port 4173
+```
+
+然后访问 `http://127.0.0.1:4173/`。
 
 重新生成包含全部 CSS、JavaScript 和编辑器的单文件版本：
 
@@ -23,7 +63,7 @@ PadCode 是一个为 iPad 和触控设备优化的免费网页代码工作台。
 powershell -ExecutionPolicy Bypass -File .\tools\build-standalone.ps1
 ```
 
-生成后的 `PadCode-standalone.html` 可以单独复制到 iPad。单文件版不需要服务器或网络，但无法使用 Service Worker 离线安装功能。
+生成后的 `PadCode-standalone.html` 可以单独复制到 iPad。单文件版会自动使用内置的 CodeMirror 编辑器，不需要服务器即可编辑和预览；使用 AI 或在线运行功能时仍需要网络。
 
 ## 从 iPad 免费发布
 
@@ -40,6 +80,10 @@ powershell -ExecutionPolicy Bypass -File .\tools\build-standalone.ps1
 
 - 运行预览：`⌘ Enter` 或 `Ctrl Enter`
 - 立即保存：`⌘ S` 或 `Ctrl S`
+- 命令面板：`F1` 或 `⇧ ⌘ P`
+- 全局搜索：`⇧ ⌘ F`
+- 资源管理器：`⌘ B`
+- 打开 AI 助手：`⌘ I`
 - 插入缩进：`Tab`
 
-CodeMirror 5 以 MIT License 分发，许可文本位于 `vendor/codemirror/LICENSE`。
+Monaco Editor 和 CodeMirror 5 均以 MIT License 分发。许可文本位于各自的 `vendor` 子目录。
